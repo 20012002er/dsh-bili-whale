@@ -1,6 +1,7 @@
 // 私信（专属通道）—— 2026-10-18 主人定：**三条写死在代码里**
 //   ① **一天只锁定 1 个收信人**（防刷量；对同一个人发多少条不限 ✓）
 //   ② 只发给配置里的 owner.mid（同一个用户，别处发不出去）
+//   ④ **带 --share 时占「分享 3 条/天」的额度**（与评论区 @ 共用同一本账 ✓；不带则只是推送，不占额度）
 //   ③ 必须互关（relation.attribute === 6），否则拒发
 //
 // 为什么写死：私信是 B站 风控最凶的接口（判营销/骚扰），而我们要的只是
@@ -14,6 +15,7 @@ import fs from 'node:fs'
 import path from 'node:path'
 import crypto from 'node:crypto'
 import { config } from '../lib/config.mjs'
+import { gate, record } from '../lib/quota-gate.mjs'
 
 const argv = process.argv.slice(2)
 const opt = {}
@@ -24,6 +26,10 @@ for (let i = 0; i < argv.length; i += 1) {
     else { opt[argv[i].slice(2)] = v; i += 1 }
   }
 }
+const SHARE = !!opt.share       // ④ 分享型：占「分享 3 条/天」额度（与评论区 @ 共用 ✓）
+// 分享型的 target 用正文里的 BV 号（"同一视频 7 天一次"才判得准 ✓）；没有就退回 dm:<mid>
+const BV = (String(opt.msg ?? "").match(/BV[0-9A-Za-z]{10}/) ?? [])[0] ?? "";
+const SHARE_TARGET = BV ? ("BV:" + BV) : ("dm:" + String(process.env.SHARE_TO ?? ""));
 const DRY = !!opt.dry
 const GO = !!opt.go
 const STATUS = !!opt.status
@@ -130,10 +136,16 @@ console.log(`  互关 ✓  ·  今天第 ${used + 1} 条（条数不限 ✓ 锁�
 if (DRY) { console.log('  [dry] 未发送 ✓ 确认后把 --dry 换成 --go'); process.exit(0) }
 if (!GO) { console.error('✗ 必须给 --dry 或 --go'); process.exit(2) }
 
+// ④ 分享型先过闸（日上限 / 同一视频 7 天一次 / 评分卡 …由 quota 统一管 ✓）
+if (SHARE) {
+  const ok = gate({ type: 'dm', target: 'dm:' + ONLY_TO, auto: true, share: true })
+  if (!ok) { console.error('✗ 分享额度不允许（见上面的 [限额闸] 输出）'); process.exit(4) }
+}
 const r = await send(ONLY_TO, MSG)
 if (r.code === 0) {
   saveQ({ date: today(), count: used + 1, mid: ONLY_TO, at: new Date().toISOString() })
-  console.log(`  ✓ 已发送（HTTP ${r.http}）`)
+  if (SHARE) record({ type: 'dm', target: 'dm:' + ONLY_TO, note: MSG.slice(0, 40), auto: true, share: true })
+  console.log(`  ✓ 已发送（HTTP ${r.http}）${SHARE ? ' · 已记入分享额度 ✓' : ' · 推送不占额度 ✓'}`)
   process.exit(0)
 }
 console.error(`  ✗ 发送失败：HTTP ${r.http} code=${r.code} ${r.message ?? ''}`)
