@@ -78,7 +78,7 @@ dsh plugin --profile desktop add "link:C:\path\to\dsh-bili-whale"
 
 ## 专属通道（私信）—— 只有一条路，写死在代码里
 
-想把东西**私密地**送到你手里、又不想在评论区吵到别人？用 `dm`：
+想把东西**私密地**送到你手里、又不想在评论区吵到别人？用 `dm`（**一天同一个人不限条数** ✓）：
 
 ```bash
 node bili.mjs dm --status                 # 看今天额度 + 互关状态
@@ -88,7 +88,7 @@ node bili.mjs dm --msg "…" --go           # 真发
 
 三条限制**不接受参数覆盖**（`commands/dm.mjs` 顶部的常量）：
 
-1. **一天只发 1 条**
+1. **一天只锁定 1 个收信人**（防刷量）—— 对**这一个人**发多少条都行 ✓
 2. **只发给配置里的 `owner.mid`** —— 别处发不出去
 3. **必须互关**（`relation.attribute === 6`），否则直接拒发
 

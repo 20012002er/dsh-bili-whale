@@ -1,5 +1,5 @@
 // 私信（专属通道）—— 2026-10-18 主人定：**三条写死在代码里**
-//   ① 一天只发 1 条
+//   ① **一天只锁定 1 个收信人**（防刷量；对同一个人发多少条不限 ✓）
 //   ② 只发给配置里的 owner.mid（同一个用户，别处发不出去）
 //   ③ 必须互关（relation.attribute === 6），否则拒发
 //
@@ -49,7 +49,7 @@ const saveQ = (o) => { fs.mkdirSync(path.dirname(QUOTA), { recursive: true }); f
 const today = () => new Date().toLocaleDateString('sv-SE')
 
 // ── 写死的三条 ───────────────────────────────────────────────────────
-const LIMIT_PER_DAY = 1
+const ONE_TARGET_PER_DAY = true  // ① 一天只锁定 1 个收信人（条数不限 ✓）
 const ONLY_TO = OWNER            // ② 只发给主人
 const REQUIRE_MUTUAL = true      // ③ 必须互关
 
@@ -87,12 +87,13 @@ async function send(toMid, text) {
 
 if (STATUS) {
   const q = loadQ()
-  const used = q.date === today() ? Number(q.count ?? 0) : 0
+  const lockedToday = q.date === today() ? String(q.mid ?? '') : ''
   const rel = await relation(ONLY_TO)
   const meInfo = await me()
   console.log(`账号: ${meInfo.uname}（mid ${meInfo.mid}）`)
   console.log(`专属对象: ${OWNER_NAME}（mid ${ONLY_TO || '未配置'}）`)
-  console.log(`今天已发: ${used}/${LIMIT_PER_DAY}`)
+  console.log(`今天锁定给: ${lockedToday || '（还没发过）'}${lockedToday && lockedToday !== ONLY_TO ? '  ⚠️ 和当前配置不一致 ✗' : ''}`)
+  console.log(`今日已发: ${q.date === today() ? Number(q.count ?? 0) : 0} 条（**条数不限** ✓ 只限收信人 ✓）`)
   console.log(`互关状态: attribute=${rel.attribute} ${rel.attribute === 6 ? '（✓ 互关，可以发）' : '（✗ 不是互关，发不出去）'}`)
   process.exit(0)
 }
@@ -116,14 +117,15 @@ if (REQUIRE_MUTUAL && rel.attribute !== 6) {
 
 const q = loadQ()
 const used = q.date === today() ? Number(q.count ?? 0) : 0
-if (used >= LIMIT_PER_DAY) {
-  console.error(`✗ 今天已经发过 ${used} 条（上限 ${LIMIT_PER_DAY} 条/天，写死在代码里 ✗）`)
+// ① 一天只锁定 1 个收信人（条数不限 ✓）：如果今天已经发给过别人 → 拒
+if (ONE_TARGET_PER_DAY && q.date === today() && q.mid && String(q.mid) !== ONLY_TO) {
+  console.error(`✗ 今天已经锁定给 mid ${q.mid} 了 —— 一天只能锁定 1 个收信人（防刷量 ✗）`)
   process.exit(4)
 }
 
 console.log(`[dm] ${meInfo.uname} → ${OWNER_NAME}（mid ${ONLY_TO}）`)
 console.log(`  正文 ${MSG.length} 字：${MSG.slice(0, 80)}${MSG.length > 80 ? '…' : ''}`)
-console.log(`  互关 ✓  ·  今天 ${used}/${LIMIT_PER_DAY}`)
+console.log(`  互关 ✓  ·  今天第 ${used + 1} 条（条数不限 ✓ 锁定给 ${OWNER_NAME} ✓）`)
 
 if (DRY) { console.log('  [dry] 未发送 ✓ 确认后把 --dry 换成 --go'); process.exit(0) }
 if (!GO) { console.error('✗ 必须给 --dry 或 --go'); process.exit(2) }
