@@ -32,6 +32,7 @@ const map = {
   covers: ['diagnostics/fetch-covers.mjs', '抓视频元信息 + 封面图存到 covers/（供看图理解内容）'],
   whois: ['diagnostics/whois.mjs', '按 mid 查昵称（@ 人前先核准名字）'],
   // —— 写（会真的发出去；都必须显式 --dry 或 --go） ——
+  'dm-await': ['commands/dm-await.mjs', '私信监听（只认主人；命中打印 DM_HIT）'],
   dm: ['commands/dm.mjs', '私信（专属通道）：一天 1 条 · 只发主人 · 必须互关（都写死）'],
   comment: ['commands/comment.mjs', '发一条视频评论；带 --root/--parent 就是二级回复'],
   'reply-draft': ['commands/reply-draft.mjs', '待审回复（B 档：发前审核）：add 进队列 / list / drop / take'],
