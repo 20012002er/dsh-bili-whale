@@ -29,7 +29,9 @@ for (let i = 0; i < argv.length; i += 1) {
 const SHARE = !!opt.share       // ④ 分享型：占「分享 3 条/天」额度（与评论区 @ 共用 ✓）
 // 分享型的 target 用正文里的 BV 号（"同一视频 7 天一次"才判得准 ✓）；没有就退回 dm:<mid>
 const BV = (String(opt.msg ?? "").match(/BV[0-9A-Za-z]{10}/) ?? [])[0] ?? "";
-const SHARE_TARGET = BV ? ("BV:" + BV) : ("dm:" + String(process.env.SHARE_TO ?? ""));
+// ⚠️ SHARE_TARGET 移到 ONLY_TO 定义之后（2026-10-19 修：原先在模块顶层引用 ONLY_TO，触发 TDZ
+//    ReferenceError: Cannot access 'ONLY_TO' before initialization → dm.mjs 整个跑不起来，
+//    notify 的私信后端也跟着挂 ✗）
 const DRY = !!opt.dry
 const GO = !!opt.go
 const STATUS = !!opt.status
@@ -58,6 +60,8 @@ const today = () => new Date().toLocaleDateString('sv-SE')
 const ONE_TARGET_PER_DAY = true  // ① 一天只锁定 1 个收信人（条数不限 ✓）
 const ONLY_TO = OWNER            // ② 只发给主人
 const REQUIRE_MUTUAL = true      // ③ 必须互关
+// 分享型的 target：优先正文里的 BV（"同一视频 7 天一次"才判得准 ✓），否则退回 dm:<mid>
+const SHARE_TARGET = String(opt.target ?? "").trim() || (BV ? ("BV:" + BV) : ("dm:" + String(ONLY_TO)))
 
 async function me() {
   const nav = await jget('https://api.bilibili.com/x/web-interface/nav')
@@ -104,7 +108,7 @@ if (STATUS) {
   process.exit(0)
 }
 
-if (!MSG) { console.error('用法: node dm.mjs --msg "…" --dry|--go   |   --status'); process.exit(2) }
+if (!MSG) { console.error('用法: node dm.mjs --msg "…" [--share --target BV…] --dry|--go   |   --status'); process.exit(2) }
 
 // ── 闸门（写死，不接受参数覆盖）──────────────────────────────────────
 if (!OWNER) { console.error('✗ 配置里 owner.mid 为空 —— 私信只发给主人，没配就不发'); process.exit(2) }
@@ -138,13 +142,13 @@ if (!GO) { console.error('✗ 必须给 --dry 或 --go'); process.exit(2) }
 
 // ④ 分享型先过闸（日上限 / 同一视频 7 天一次 / 评分卡 …由 quota 统一管 ✓）
 if (SHARE) {
-  const ok = gate({ type: 'dm', target: 'dm:' + ONLY_TO, auto: true, share: true })
+  const ok = gate({ type: 'dm', target: SHARE_TARGET, auto: true, share: true })
   if (!ok) { console.error('✗ 分享额度不允许（见上面的 [限额闸] 输出）'); process.exit(4) }
 }
 const r = await send(ONLY_TO, MSG)
 if (r.code === 0) {
   saveQ({ date: today(), count: used + 1, mid: ONLY_TO, at: new Date().toISOString() })
-  if (SHARE) record({ type: 'dm', target: 'dm:' + ONLY_TO, note: MSG.slice(0, 40), auto: true, share: true })
+  if (SHARE) record({ type: 'dm', target: SHARE_TARGET, note: MSG.slice(0, 40), auto: true, share: true })
   console.log(`  ✓ 已发送（HTTP ${r.http}）${SHARE ? ' · 已记入分享额度 ✓' : ' · 推送不占额度 ✓'}`)
   process.exit(0)
 }
