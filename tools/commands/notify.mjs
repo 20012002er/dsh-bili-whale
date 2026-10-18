@@ -13,7 +13,8 @@
 //
 // 配置（~/.dsh/bili-whale.config.json 的 notify 段）：
 //   { "type": "none|desktop|webhook|command", "url": "", "template": "text|markdown", "cmd": "" }
-import { execFileSync } from 'node:child_process'
+import { execFileSync, spawnSync } from 'node:child_process'
+import { fileURLToPath } from 'node:url'
 import fs from 'node:fs'
 import os from 'node:os'
 import path from 'node:path'
@@ -151,6 +152,13 @@ try {
     } else {
       sendCommand(n.cmd)
     }
+  } else if (type === 'dm') {
+    // 2026-10-19 加：B站私信（专属通道）—— 调 commands/dm.mjs 的发送逻辑
+    //   私信自带三道闸（只发主人 / 必须互关 / 一天只锁定一个收信人）；失败只提示，不抛 ✗
+    const dmPath = path.join(path.dirname(fileURLToPath(import.meta.url)), 'dm.mjs')
+    const r = spawnSync(process.execPath, [dmPath, '--msg', String(text), '--go'], { encoding: 'utf8', timeout: 90000 })
+    process.stdout.write(String(r.stdout ?? ''))
+    if (r.status !== 0) console.error(String(r.stderr ?? '').trim() || '（私信发送失败）')
   } else if (type === 'stdout') {
     console.log(`[通知] ${title}\n${text}`)
   } else if (type === 'file') {
