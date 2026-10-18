@@ -54,8 +54,40 @@ if (bd.code === 0) {
   }
 }
 
+// —— [d] 主列表里找（2026-10-19 加）——
+//   [b]/[c] 用的是 reply/reply?root=<rpid>，只能查"某条评论下面的回复" ✗
+//   而「分享」发出去的是**一级评论**（新的根）→ 那个接口查不到 → 结论永远错 ✗
+//   这里拉评论区主列表（按时间倒序 = sort=2）翻前几页找 rpid，找到就是真公开 ✓
+let foundInMain = false
+try {
+  for (let pn = 1; pn <= 3 && !foundInMain; pn += 1) {
+    const u = `https://api.bilibili.com/x/v2/reply?type=1&oid=${AID}&pn=${pn}&ps=20&sort=2`
+    const r = await fetch(u, { headers: { 'user-agent': UA, referer: REF } })   // 匿名
+    const rd = await r.json()
+    const list = rd.data?.replies ?? []
+    if (!list.length) break
+    const hit = list.find((x) => String(x.rpid) === String(RPID))
+    if (hit) {
+      foundInMain = true
+      console.log(`\n[d] 主列表第 ${pn} 页找到 ✓  ${hit.member?.uname}: ${String(hit.content?.message ?? '').slice(0, 60)}`)
+      console.log(`    state=${hit.state}  like=${hit.like}  ctime=${new Date(hit.ctime * 1000).toLocaleString('zh-CN')}`)
+    } else {
+      console.log(`\n[d] 主列表第 ${pn} 页 ${list.length} 条，没找到（继续翻）`)
+    }
+  }
+  if (!foundInMain) console.log('\n[d] 主列表前 3 页都没找到 ✗')
+} catch (e) {
+  console.log(`\n[d] 跳过：${e.message}`)
+}
+
 // —— [c] 带登录态的对照 ——
 let verdict = '❓ 结论不确定'
+
+// [d] 找到了 = 匿名可见 = 真公开 ✓ 直接定论（优先级最高 ✓）
+if (foundInMain) {
+  console.log('\n=== 结论：✅ 真公开（主列表里翻到了，匿名可见 ✓）===')
+  process.exit(0)
+}
 try {
   const cred = JSON.parse(fs.readFileSync(path.join((process.env.USERPROFILE || process.env.HOME || '/'), '.bili-ai', 'credentials.json'), 'utf8'))
   const cookie = `SESSDATA=${cred.sessdata}; bili_jct=${cred.bili_jct}; buvid3=${cred.buvid3}`
