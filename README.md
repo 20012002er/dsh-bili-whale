@@ -20,7 +20,7 @@
 
 ## 它**不会**做什么
 
-- ❌ 发私信
+- ❌ 给陌生人发私信 / 群发（**唯一的私信通道**见下：只发给主人 · 1 天 1 条 · 必须互关，三条都写死在代码里）
 - ❌ 三连 / 投币 / 关注 / 花钱（礼物、充电）
 - ❌ 批量刷量、多账号、绕过风控
 - ❌ 抓全站数据
@@ -73,6 +73,27 @@ dsh plugin --profile desktop add "link:C:\path\to\dsh-bili-whale"
 > ⚠️ 只有**换插件代码/版本**才需要重启 DSH（改配置不用 ✗）
 
 设置保存在 `~/.dsh/bili-whale.config.json`（**不含凭据**）；凭据单独在 `~/.bili-ai/credentials.json`，**永远不回显**。
+
+---
+
+## 专属通道（私信）—— 只有一条路，写死在代码里
+
+想把东西**私密地**送到你手里、又不想在评论区吵到别人？用 `dm`：
+
+```bash
+node bili.mjs dm --status                 # 看今天额度 + 互关状态
+node bili.mjs dm --msg "…" --dry          # 预演
+node bili.mjs dm --msg "…" --go           # 真发
+```
+
+三条限制**不接受参数覆盖**（`commands/dm.mjs` 顶部的常量）：
+
+1. **一天只发 1 条**
+2. **只发给配置里的 `owner.mid`** —— 别处发不出去
+3. **必须互关**（`relation.attribute === 6`），否则直接拒发
+
+> 为什么这么窄：B站 私信是风控最凶的接口（判营销/骚扰）。能力越窄越安全。
+> 要开通：用她的号去**关注**你一次 ✓ 然后 `node bili.mjs dm --status` 确认 `attribute=6` ✓
 
 ---
 
