@@ -82,7 +82,7 @@ function sendDesktop() {
   const ps = [
     '[Windows.UI.Notifications.ToastNotificationManager, Windows.UI.Notifications, ContentType = WindowsRuntime] | Out-Null',
     '[Windows.Data.Xml.Dom.XmlDocument, Windows.Data.Xml.Dom, ContentType = WindowsRuntime] | Out-Null',
-    '"<toast><visual><binding template=\\"ToastGeneric\\"><text></text><text></text></binding></visual></toast>" | Out-File -Encoding utf8 $env:DW_XML',
+    '"<toast><visual><binding template=""ToastGeneric""><text></text><text></text></binding></visual></toast>" | Out-File -Encoding utf8 $env:DW_XML',
     '$xml = New-Object Windows.Data.Xml.Dom.XmlDocument',
     '$xml.LoadXml([IO.File]::ReadAllText($env:DW_XML))',
     '$node = $xml.GetElementsByTagName("text")',
@@ -96,7 +96,7 @@ function sendDesktop() {
   fs.writeFileSync(script, ps, 'utf8')
   execFileSync('powershell.exe', ['-NoProfile', '-ExecutionPolicy', 'Bypass', '-File', script], {
     env: { ...process.env, DW_TITLE: String(title), DW_TEXT: String(text), DW_XML: xml },
-    stdio: 'ignore', timeout: 15000,
+    encoding: 'utf8', timeout: 20000, stdio: ['ignore', 'pipe', 'pipe'],
   })
   fs.rmSync(script, { force: true })
   console.log('桌面通知已发送 ✓')
