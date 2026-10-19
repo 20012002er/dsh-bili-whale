@@ -12,7 +12,7 @@
 import fs from 'node:fs'
 import path from 'node:path'
 import crypto from 'node:crypto'
-import { execFileSync } from 'node:child_process'
+import { execFileSync, spawnSync } from 'node:child_process'
 import { fileURLToPath } from 'node:url'
 import { config } from '../lib/config.mjs'
 
@@ -45,11 +45,14 @@ async function parentAuthor(aid, rootRpid, parentRpid) {
   }
   return null
 }
+// 2026-10-19：DSH 的 Windows 沙箱禁止"捕获子进程输出"的 spawn（管道 → EPERM），
+//   execFileSync 在会话里必然抛 → 闸门 fail-closed → 一条评论都发不出去。
+//   改用 stdio:'inherit'（bili.mjs 的分发同款，沙箱内实测可用）：
+//   子进程输出直接进控制台，用退出码判胜负。
 const quota = (args) => {
-  try {
-    return { code: 0, out: execFileSync(process.execPath,
-      [path.join(path.dirname(fileURLToPath(import.meta.url)), 'quota.mjs'), ...args], { encoding: 'utf8' }).trim() }
-  } catch (e) { return { code: e.status ?? 1, out: String(e.stdout ?? e.message).trim() } }
+  const r = spawnSync(process.execPath,
+    [path.join(path.dirname(fileURLToPath(import.meta.url)), 'quota.mjs'), ...args], { stdio: 'inherit' })
+  return { code: r.status ?? (r.error ? 1 : 0), out: '' }
 }
 
 const args = new Map()
@@ -223,8 +226,8 @@ if (dry) {
 // 闸门：自主发言（--auto）或分享型（--share）才拦；主人授权的发言只显示额度
 {
   const target = bvid ? `BV:${bvid}` : `oid:${oid}`
+  console.log('\n[限额闸]')
   const chk = quota(['check', '--type', 'comment', '--target', target, ...(SHARE ? ['--share'] : AUTO ? ['--auto'] : [])])
-  console.log(`\n[限额闸] ${chk.out}`)
   if (chk.code !== 0) {
     console.error('  → 拒绝发送。这是硬约束第 4 条的代码实现，不要绕过（要发请主人当场授权，或改白名单/额度）。')
     process.exit(2)
@@ -270,9 +273,9 @@ if (out.code === 0) {
     } catch (e) { console.log(`  [once] 记账失败（不影响已发出的评论）：${String(e.message).slice(0, 80)}`) }
   }
   // 记账（发出去才算数）
+  console.log('  [限额闸]')
   const rec = quota(['record', '--type', 'comment', '--target', bvid ? `BV:${bvid}` : `oid:${oid}`,
     '--note', message.replace(/\s+/g, ' ').slice(0, 40), ...(SHARE ? ['--share'] : AUTO ? ['--auto'] : [])])
-  console.log(`  [限额闸] ${rec.out}`)
   // 自主 / 分享型 → **自动报备**（把 AGENTS 里的"约定"落到代码里；后端由 config.notify 决定）
   if (AUTO || SHARE) {
     try {

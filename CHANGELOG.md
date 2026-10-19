@@ -1,5 +1,27 @@
 # 更新日志
 
+## 未发布 —— 兼容性修复（DSH 会话内运行）
+
+> 主题：**让 main 在它自己的设计运行环境里跑得动**。以下问题在 stock
+> Windows + DSH 部署下全部真实复现并修复。
+
+### 修复
+
+- **她的会话沙箱全程失效**（致命）：插件把会话 cwd 固定为主目录，而
+  stock Windows 的 TEMP 就在主目录里 → DSH 沙箱拒绝她的每一个会话 →
+  pwsh 全死、整条工具链不可用。插件加载时检测到冲突即把 TEMP 重定向到
+  `%PUBLIC%\dsh-whale-temp`（显式用户完全控制 + Low 完整性标签）
+- **跨午夜窗口被静默丢弃**（致命）：`10:00→06:00` 这类窗口以前被
+  filter 丢掉 → 全天“窗口都过完了”；`inWindow` 同时恒 false。现统一
+  按 `[start, 1440+end)` 比较
+- **捕获式子进程 spawn 在沙箱内必然 EPERM**（致命/高）：`comment` 的
+  额度闸 fail-closed（一条评论都发不出）、`ffmpeg` 体检永远红、
+  `notify dm` 失效、`debrief` 抽帧整段瞎掉、`quota react` 静默失效。
+  改用 `stdio:'inherit'` / 文件句柄重定向 / 边车文件
+  （`bili-watch` 新增 `last-watch.txt`）
+- **buvid3 文档与代码不一致**：README 说可留空，工具缺一项即 exit 3；
+  cookie 保存时自动从官方 finger/spi 补齐
+
 ## v0.2.0 —— 私信版（2026-10-19）
 
 > 这一版的主题：**给她一条"只对你说话"的通道**。

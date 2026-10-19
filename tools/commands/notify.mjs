@@ -154,11 +154,23 @@ try {
     }
   } else if (type === 'dm') {
     // 2026-10-19 加：B站私信（专属通道）—— 调 commands/dm.mjs 的发送逻辑
-    //   私信自带三道闸（只发主人 / 必须互关 / 一天只锁定一个收信人）；失败只提示，不抛 ✗
+    //   私信自带三道闸（只发主人 / 必须互相关注 / 一天只锁定一个收信人）；失败只提示，不抛 ✗
+    // 2026-10-19：DSH 的 Windows 沙箱禁止捕获子进程输出（管道 → EPERM）——
+    //   用文件句柄重定向拿输出（不走管道），再原样转贴到 stdout/stderr。
     const dmPath = path.join(path.dirname(fileURLToPath(import.meta.url)), 'dm.mjs')
-    const r = spawnSync(process.execPath, [dmPath, '--msg', String(text), '--go'], { encoding: 'utf8', timeout: 90000 })
-    process.stdout.write(String(r.stdout ?? ''))
-    if (r.status !== 0) console.error(String(r.stderr ?? '').trim() || '（私信发送失败）')
+    const outF = path.join(os.tmpdir(), `whale-dm-out-${process.pid}-${Date.now()}.txt`)
+    const errF = path.join(os.tmpdir(), `whale-dm-err-${process.pid}-${Date.now()}.txt`)
+    const fdO = fs.openSync(outF, 'w'); const fdE = fs.openSync(errF, 'w')
+    let r
+    try {
+      r = spawnSync(process.execPath, [dmPath, '--msg', String(text), '--go'], { stdio: ['ignore', fdO, fdE], timeout: 90000 })
+    } finally {
+      try { fs.closeSync(fdO) } catch {}
+      try { fs.closeSync(fdE) } catch {}
+    }
+    if (fs.existsSync(outF)) process.stdout.write(fs.readFileSync(outF, 'utf8'))
+    if (r?.status !== 0) console.error((fs.existsSync(errF) ? fs.readFileSync(errF, 'utf8') : '').trim() || '（私信发送失败）')
+    fs.rmSync(outF, { force: true }); fs.rmSync(errF, { force: true })
   } else if (type === 'stdout') {
     console.log(`[通知] ${title}\n${text}`)
   } else if (type === 'file') {
