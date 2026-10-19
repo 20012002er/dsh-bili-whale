@@ -82,7 +82,7 @@ function sendDesktop() {
   const ps = [
     '[Windows.UI.Notifications.ToastNotificationManager, Windows.UI.Notifications, ContentType = WindowsRuntime] | Out-Null',
     '[Windows.Data.Xml.Dom.XmlDocument, Windows.Data.Xml.Dom, ContentType = WindowsRuntime] | Out-Null',
-    '"<toast><visual><binding template=""ToastGeneric""><text></text><text></text></binding></visual></toast>" | Out-File -Encoding utf8 $env:DW_XML',
+    '"<toast><visual><binding template=\\"ToastGeneric\\"><text></text><text></text></binding></visual></toast>" | Out-File -Encoding utf8 $env:DW_XML',
     '$xml = New-Object Windows.Data.Xml.Dom.XmlDocument',
     '$xml.LoadXml([IO.File]::ReadAllText($env:DW_XML))',
     '$node = $xml.GetElementsByTagName("text")',
@@ -96,7 +96,7 @@ function sendDesktop() {
   fs.writeFileSync(script, ps, 'utf8')
   execFileSync('powershell.exe', ['-NoProfile', '-ExecutionPolicy', 'Bypass', '-File', script], {
     env: { ...process.env, DW_TITLE: String(title), DW_TEXT: String(text), DW_XML: xml },
-    encoding: 'utf8', timeout: 20000, stdio: ['ignore', 'pipe', 'pipe'],
+    stdio: 'ignore', timeout: 15000,
   })
   fs.rmSync(script, { force: true })
   console.log('桌面通知已发送 ✓')
@@ -154,23 +154,11 @@ try {
     }
   } else if (type === 'dm') {
     // 2026-10-19 加：B站私信（专属通道）—— 调 commands/dm.mjs 的发送逻辑
-    //   私信自带三道闸（只发主人 / 必须互相关注 / 一天只锁定一个收信人）；失败只提示，不抛 ✗
-    // 2026-10-19：DSH 的 Windows 沙箱禁止捕获子进程输出（管道 → EPERM）——
-    //   用文件句柄重定向拿输出（不走管道），再原样转贴到 stdout/stderr。
+    //   私信自带三道闸（只发主人 / 必须互关 / 一天只锁定一个收信人）；失败只提示，不抛 ✗
     const dmPath = path.join(path.dirname(fileURLToPath(import.meta.url)), 'dm.mjs')
-    const outF = path.join(os.tmpdir(), `whale-dm-out-${process.pid}-${Date.now()}.txt`)
-    const errF = path.join(os.tmpdir(), `whale-dm-err-${process.pid}-${Date.now()}.txt`)
-    const fdO = fs.openSync(outF, 'w'); const fdE = fs.openSync(errF, 'w')
-    let r
-    try {
-      r = spawnSync(process.execPath, [dmPath, '--msg', String(text), '--go'], { stdio: ['ignore', fdO, fdE], timeout: 90000 })
-    } finally {
-      try { fs.closeSync(fdO) } catch {}
-      try { fs.closeSync(fdE) } catch {}
-    }
-    if (fs.existsSync(outF)) process.stdout.write(fs.readFileSync(outF, 'utf8'))
-    if (r?.status !== 0) console.error((fs.existsSync(errF) ? fs.readFileSync(errF, 'utf8') : '').trim() || '（私信发送失败）')
-    fs.rmSync(outF, { force: true }); fs.rmSync(errF, { force: true })
+    const r = spawnSync(process.execPath, [dmPath, '--msg', String(text), '--go'], { encoding: 'utf8', timeout: 90000 })
+    process.stdout.write(String(r.stdout ?? ''))
+    if (r.status !== 0) console.error(String(r.stderr ?? '').trim() || '（私信发送失败）')
   } else if (type === 'stdout') {
     console.log(`[通知] ${title}\n${text}`)
   } else if (type === 'file') {

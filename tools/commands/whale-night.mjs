@@ -102,12 +102,6 @@ function makePlan() {
   usedCount[w.label] = (usedCount[w.label] ?? 0) + 1
   const withinWindow = `${w.label} 第 ${usedCount[w.label]}/${w.wakes} 次`
 
-  if (Math.random() < Number(cfg.skipChance ?? 0.3)) {
-    return {
-      date: today(), action: 'skip', wakes: done, usedCount, window: w.label, endAt: w.end, withinWindow,
-      reason: `这次不想看（掷骰子掷到了「不看」那 ${Math.round((Number(cfg.skipChance ?? 0.3)) * 100)}%）`,
-    }
-  }
   let at = w.start + Math.floor(Math.random() * Math.max(1, w.end - w.start))
   if (w.wrap && at >= 1440) at -= 1440   // 落在午夜后那段 → 折算回当天分钟
   if (at <= now) {
@@ -120,7 +114,14 @@ function makePlan() {
     } else {
       at = Math.min(w.end - 1, at)
     }
-  }
+    }
+    if (Math.random() < Number(cfg.skipChance ?? 0.3)) {
+      return {
+        date: today(), action: 'skip', wakes: done, usedCount, window: w.label, endAt: w.end, withinWindow,
+        at, atText: hhmm(at),   // 2026-10-20 修：不看也要"到点"，否则会立刻被叫醒 ✗
+        reason: `这次不想看（掷骰子掷到了「不看」那 ${Math.round((Number(cfg.skipChance ?? 0.3)) * 100)}%）`,
+      }
+    }
   return {
     date: today(), action: 'wake', at, atText: hhmm(at), wakes: done, usedCount, window: w.label, withinWindow,
     roll: 'watch', maxVideos: cfg.maxVideos ?? 5, createdAt: new Date().toISOString(),

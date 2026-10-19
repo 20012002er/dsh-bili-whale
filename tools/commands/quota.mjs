@@ -157,37 +157,22 @@ if (cmd === 'record') {
 //   所以是 best-effort：查到就记，查不到就明说"没检测到"（可能是跨端表态）
 if (cmd === 'react' && opt.auto) {
   try {
-    // 2026-10-19：DSH 的 Windows 沙箱禁止"捕获子进程输出"的 spawn（管道 → EPERM），
-    //   execFileSync 在这两条 best-effort 探测里必然抛。改用「文件句柄重定向」：
-    //   子进程 stdout 直接写文件（不走管道），再读文件判断。
-    const { spawnSync } = await import('node:child_process')
-    const os = await import('node:os')
+    const { execFileSync } = await import('node:child_process')
     const here = (f) => decodeURIComponent(new URL(f, import.meta.url).pathname).replace(/^\/([A-Za-z]:)/, '$1')
     const hours = String(opt.hours ?? 72)
     const found = []
-    const runCapture = (args) => {
-      const f = path.join(os.tmpdir(), `whale-react-${process.pid}-${Date.now()}.txt`)
-      const fd = fs.openSync(f, 'w')
-      try {
-        const r = spawnSync(process.execPath, args, { stdio: ['ignore', fd, 'inherit'] })
-        const out = fs.existsSync(f) ? fs.readFileSync(f, 'utf8') : ''
-        return { code: r.status ?? (r.error ? 1 : 0), out }
-      } finally { try { fs.closeSync(fd) } catch {}; fs.rmSync(f, { force: true }) }
-    }
     // ① 回复
     try {
-      const r1 = runCapture([here('./comment-digest.mjs'), '--hours', hours, '--pages', '1'])
+      const out = execFileSync(process.execPath, [here('./comment-digest.mjs'), '--hours', hours, '--pages', '1'], { encoding: 'utf8' })
       const ownerName = String(config().owner?.name ?? '')
       const ownerMid = String(config().owner?.mid ?? '')
-      if (r1.code === 0 && ((ownerName && r1.out.includes(ownerName)) || (ownerMid && r1.out.includes(ownerMid)))) found.push('回复')
+      if ((ownerName && out.includes(ownerName)) || (ownerMid && out.includes(ownerMid))) found.push('回复')
     } catch { /* 收件箱失败不影响点赞这一路 */ }
     // ② 点赞（--json 里 ownerLiked 是确定数字，比抠文本稳）
     try {
-      const r2 = runCapture([here('./likes.mjs'), '--owner', '--json', '--hours', hours])
-      if (r2.out.trim()) {
-        const o = JSON.parse(r2.out)
-        if (Number(o.ownerLiked ?? 0) > 0) found.push(`点赞×${o.ownerLiked}`)
-      }
+      const js = execFileSync(process.execPath, [here('./likes.mjs'), '--owner', '--json', '--hours', hours], { encoding: 'utf8' })
+      const o = JSON.parse(js)
+      if (Number(o.ownerLiked ?? 0) > 0) found.push(`点赞×${o.ownerLiked}`)
     } catch { /* 同上 */ }
     if (found.length) {
       const fb = loadFeedback()

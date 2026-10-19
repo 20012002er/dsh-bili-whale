@@ -12,7 +12,6 @@
 //     画面抽帧       → "长什么样"（界面/动作/梗；由模型看图补语义）
 //   最后一步（读图 + 合成结论）**必须由模型完成**，本脚本只负责把素材备齐、对齐、标好采样率与噪声。
 import fs from 'node:fs'
-import os from 'node:os'
 import path from 'node:path'
 import crypto from 'node:crypto'
 import zlib from 'node:zlib'
@@ -210,19 +209,9 @@ if (!opt['no-frames']) {
   try {
     // ⚠️ 必须用 fileURLToPath：用 URL.pathname 会把路径里的空格变成 %20（实测踩过）
     const watch = path.join(path.dirname(fileURLToPath(import.meta.url)), 'bili-watch.mjs')
-    // 2026-10-19：DSH 的 Windows 沙箱禁止"捕获子进程输出"的 spawn（管道 → EPERM），
-    //   原来 execFileSync 抓 bili-watch 的 stdout，在会话里必然抛 → 抽帧整段瞎掉。
-    //   改走「边车文件」：显式传 outDir，bili-watch 把摘要写进 <outDir>/last-watch.txt，
-    //   这里读文件解析 —— 全程普通文件 I/O，沙箱下可用。
-    const outDir = path.join(process.env.USERPROFILE || os.homedir(), '.dsh', 'shots', 'video')
-    fs.mkdirSync(outDir, { recursive: true })
-    const capF = path.join(outDir, 'last-watch.txt')
-    try { fs.rmSync(capF, { force: true }) } catch {}
-    execFileSync(process.execPath, [watch, bvid, GRID, outDir], { stdio: 'inherit' })
-    const out = fs.existsSync(capF) ? fs.readFileSync(capF, 'utf8') : ''
+    const out = execFileSync(process.execPath, [watch, bvid, GRID], { encoding: 'utf8', maxBuffer: 32 * 1024 * 1024 })
     for (const line of out.split('\n')) if (/^(SHEET|SUBS|实际画质|取帧方式)/.test(line)) console.log(line)
     sheet = (out.split('\n').find((l) => l.startsWith('SHEET:')) || '').slice(6).trim() || null
-    if (!sheet) console.log('（抽帧完成但没读到边车摘要——可重试或加 --no-frames）')
   } catch (e) { console.log(`（抽帧失败：${String(e.message).slice(0, 200)}）`) }
 
   // ── ⑥b 字幕条拼图（--substrip [每N秒]）──────────────────────────────

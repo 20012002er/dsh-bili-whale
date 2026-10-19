@@ -6,7 +6,6 @@
 //
 // 依赖：ffmpeg（查找顺序见 lib/ffmpeg.mjs：$FFMPEG → PATH → bin/ → ~/.dsh/bili-whale/bin → 本机剪映）
 import fs from 'node:fs'
-import os from 'node:os'
 import path from 'node:path'
 import { execFileSync } from 'node:child_process'
 import { requireFfmpeg } from '../lib/ffmpeg.mjs'
@@ -53,22 +52,13 @@ console.log(`已下载: ${mp4}  (${(fs.statSync(mp4).size / 1024 / 1024).toFixed
 // 画面变化由 ffmpeg 的 scene 过滤器给出：空跑一次，把 pts_time 抓出来，再从中均匀挑 N 个。
 // 好处：等间隔会漏掉"只出现一两秒的关键画面"，画面变化点天然落在场景切换处。
 function sceneTimes(file, th) {
-  // 2026-10-19：DSH 的 Windows 沙箱禁止"捕获子进程输出"的 spawn（管道 → EPERM），
-  //   原来 stdio:['ignore','pipe','ignore'] 在会话里必然抛 → 变化点全部检不出。
-  //   改成文件句柄重定向：ffmpeg 的 pts_time 写进临时文件，再读文件解析。
-  const tmpF = path.join(os.tmpdir(), `whale-scene-${process.pid}-${Date.now()}.txt`)
-  const fd = fs.openSync(tmpF, 'w')
   try {
-    execFileSync(FFMPEG, ['-hide_banner', '-i', file, '-vf',
+    const out = execFileSync(FFMPEG, ['-hide_banner', '-i', file, '-vf',
       `select='gt(scene,${th})',metadata=print:file=-`, '-an', '-f', 'null', '-'],
-      { stdio: ['ignore', fd, 'ignore'], maxBuffer: 16 * 1024 * 1024 })
-    const out = fs.existsSync(tmpF) ? fs.readFileSync(tmpF, 'utf8') : ''
+      { encoding: 'utf8', stdio: ['ignore', 'pipe', 'ignore'], maxBuffer: 16 * 1024 * 1024 })
     const ts = [...out.matchAll(/pts_time:([0-9.]+)/g)].map((m) => Number(m[1]))
     return [...new Set(ts)].filter((t) => t > 0.2)
-  } catch { return [] } finally {
-    try { fs.closeSync(fd) } catch {}
-    try { fs.rmSync(tmpF, { force: true }) } catch {}
-  }
+  } catch { return [] }
 }
 const fmt = (s) => `${String(Math.floor(s / 60)).padStart(2, '0')}:${String(Math.floor(s % 60)).padStart(2, '0')}`
 const pickEvenly = (list, n) =>
@@ -131,17 +121,6 @@ try {
   console.log('（字幕条版生成失败，忽略——不影响 SHEET）')
 }
 fs.rmSync(tmp, { recursive: true, force: true })
-// 2026-10-19：把摘要写进边车文件 <outDir>/last-watch.txt —— DSH 的 Windows 沙箱
-//   禁止"捕获子进程输出"的 spawn（管道 → EPERM），debrief 等调用方改为读这个文件。
-try {
-  const lines = [
-    `实际画质: ${QN[p.data.quality] ?? p.data.quality}`,
-    `取帧方式: ${how}`,
-    `SHEET: ${sheet}`,
-  ]
-  if (fs.existsSync(subs)) lines.push(`SUBS:  ${subs}`)
-  fs.writeFileSync(path.join(outDir, 'last-watch.txt'), lines.join('\n') + '\n')
-} catch {}
 console.log(`（原片留着: ${mp4}；换参数重抽不必重新下载。加 --uniform 可强制等间隔）`)
 console.log('（提示：这条视频若有官方字幕，先跑 `node bili.mjs subtitles <BV>` 更省也更准——' +
   '抽帧是给"字幕没官方轨、或要看画面/界面"的情况用的）')

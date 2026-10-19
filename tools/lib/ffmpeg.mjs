@@ -14,7 +14,7 @@
 import fs from 'node:fs'
 import path from 'node:path'
 import { fileURLToPath } from 'node:url'
-import { spawnSync } from 'node:child_process'
+import { execFileSync } from 'node:child_process'
 
 const EXE = process.platform === 'win32' ? 'ffmpeg.exe' : 'ffmpeg'
 const HERE = path.dirname(fileURLToPath(import.meta.url))
@@ -72,12 +72,10 @@ export function requireFfmpeg() {
 export function ffmpegInfo() {
   const p = ffmpegPath()
   if (!p) return { ok: false, path: null, version: null }
-  // 2026-10-19：DSH 的 Windows 沙箱禁止捕获子进程输出（管道 → EPERM）——
-  //   以前这里 execFileSync 抓 -version 输出，在会话里必然抛 → 体检永远红。
-  //   改用 stdio:'ignore' 只取退出码；版本号改用 registry 查询（不 spawn）。
-  const r = spawnSync(p, ['-hide_banner', '-version'], { stdio: 'ignore' })
-  if (r.error || (r.status ?? 1) !== 0) {
-    return { ok: false, path: p, version: null, error: String(r.error?.message ?? ('exit ' + r.status)).slice(0, 120) }
+  try {
+    const out = execFileSync(p, ['-hide_banner', '-version'], { encoding: 'utf8' })
+    return { ok: true, path: p, version: (out.split('\n')[0] || '').trim() }
+  } catch (e) {
+    return { ok: false, path: p, version: null, error: String(e.message).slice(0, 120) }
   }
-  return { ok: true, path: p, version: 'ok' }
 }
