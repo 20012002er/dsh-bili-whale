@@ -1,5 +1,21 @@
 # 更新日志
 
+## 未发布
+
+### 修复
+
+- **依赖体检"全红"、而且一条明细都没有**（Desktop 版 DSH 必现）
+  - 病因：v0.2.0 的 `findNode()` 只有 `DSH_NODE` / `~/.dsh/dsh-runtimes/...` 两个候选，
+    而 **Desktop 版 DSH 根本没有 `dsh-runtimes/`** ✗ → 兜底落到 `process.execPath`
+    （= `DSH Desktop.exe`，Electron 主程序）→ 子进程按"再启动一次 App"处理：
+    抢不到单实例锁就静默退出，**stdout 为空** → `deps` 解析出 `{}` → 设置页只显示"有项不可用 ✗"
+  - `findNode()` 补上 `PATH` 与 `C:\Program Files\nodejs`（实测那台机器的 `node.exe` 在 `PATH` 里）
+  - 万一仍落到 Electron 主程序：子进程环境一律带 `ELECTRON_RUN_AS_NODE=1`
+    （对真 `node.exe` 无害；不带就是启动 App ✗）
+  - 同一病因还会静默拖死生物钟（`~/.dsh/whale-night.json` 永远不生成）→ 一并修掉
+- 体检结果为空时**不再沉默**：塞一条「体检没有输出」，打印 node 路径 / exit / stdout / stderr，
+  下次再出问题一眼能看出是哪个环节断的
+
 ## v0.2.0 —— 私信版（2026-10-19）
 
 > 这一版的主题：**给她一条"只对你说话"的通道**。
