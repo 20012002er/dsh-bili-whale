@@ -88,23 +88,48 @@ const wakesToday = (s) => (s.date === today() ? Number(s.wakes ?? 0) : 0)
 function makePlan() {
   const now = nowMin()
   const done = wakesToday(st)
-  if (MAX_WAKES === 0) return { date: today(), action: 'done', wakes: done, reason: '所有窗口的"醒来次数"都是 0 → 今天不醒' }
-  if (done >= MAX_WAKES) return { date: today(), action: 'done', wakes: done, reason: `今天已经醒了 ${done} 次（上限 ${MAX_WAKES}）` }
+  // 2026-10-20：这一夜已经处理完（含"不看"已投递）→ 不再重排 ✓
+  if (st?.date === today() && st.done === true) {
+    return { date: today(), action: 'done', done: true, wakes: done, reason: '这一夜已经处理过 ✓' }
+  }
+  if (MAX_WAKES === 0) return { date: today(), action: 'done', done: true, wakes: done, reason: '所有窗口的"醒来次数"都是 0 → 今天不醒' }
+  if (done >= MAX_WAKES) return { date: today(), action: 'done', done: true, wakes: done, reason: `今天已经醒了 ${done} 次（上限 ${MAX_WAKES}）` }
   // 还没结束的窗口（跨午夜窗口：任何时刻要么在窗口内、要么在今天开场前 → 都算开放）
   const open = WINDOWS.filter((w) => w.wrap ? true : w.end > now)
-  if (!open.length) return { date: today(), action: 'done', wakes: done, reason: '今天的窗口都过完了' }
-  // 每个窗口能醒 w.wakes 次；用 usedCount 记今天每个窗口已经用掉几次（2026-10-18 修：以前一个窗口只能用一次 ✗）
+  if (!open.length) return { date: today(), action: 'done', done: true, wakes: done, reason: '今天的窗口都过完了' }
+  // ⚠️ 2026-10-20：**这一夜的"不看"已经投递过了** → 直接 done，别再排（她会反复被叫醒 ✗）
+  if (st?.date === today() && st.action === 'skip' && st.fired === true) {
+    return { date: today(), action: 'done', done: true, wakes: done, reason: '这一夜的「不看」已经处理过 ✓' }
+  }
+  // 每个窗口能醒 w.wakes 次；usedCount 记今天每个窗口已经【真正看过】几次
   const usedCount = st.date === today() && st.usedCount && typeof st.usedCount === 'object' ? { ...st.usedCount } : {}
   const byUsed = (list) => list.filter((w) => (usedCount[w.label] ?? 0) < w.wakes)
-  let pool = byUsed(open)
-  if (!pool.length) return { date: today(), action: 'done', wakes: done, reason: '所有窗口的醒来次数都用完了' }
+  const pool = byUsed(open)
+  if (!pool.length) return { date: today(), action: 'done', done: true, wakes: done, reason: '所有窗口的醒来次数都用完了' }
   const w = pool[Math.floor(Math.random() * pool.length)]
-  usedCount[w.label] = (usedCount[w.label] ?? 0) + 1
-  const withinWindow = `${w.label} 第 ${usedCount[w.label]}/${w.wakes} 次`
 
-  let at = w.start + Math.floor(Math.random() * Math.max(1, w.end - w.start))
+  // ── 2026-10-20 重写（社区反馈 + 实测）──────────────────────────────
+  //   旧逻辑：usedCount 先 +1 → 再判断 skip → skip 也把"醒来次数"吃掉了 ✗
+  //     结果：单窗口用户一掷到"不看"，那个窗口就作废 → 整晚不醒 → 不写日记、不推送 ✗
+  //   新逻辑：nth 只算不写回 ✓ 挑完时刻 ✓ skip 直接返回（不含 usedCount 变更）✓
+  //     只有真正 wake 时才 usedCount[w.label] = nth ✓
+  const nth = (usedCount[w.label] ?? 0) + 1
+  const withinWindow = `${w.label} 第 ${nth}/${w.wakes} 次`
+
+  // 挑时刻（先算，skip 也要带 at：否则到点判断无从谈起）
+  // ⚠️ 2026-10-20：如果【今天已有未到点的 skip 计划】，必须沿用它的 at ✗ 不能重新随机
+  //   否则每 tick 重排一次 → at 被"顺延到 now+1" → 永远追不上 → pass 永远 false → 她永远不醒 ✗
+  //   2026-10-20 修：**不要**加 "Number(st.at) > now" —— at 过了也要沿用 ✓
+  //   否则过了点之后又重随机 → at 一路上涨 → 永远追不上 / 或反复投递 ✗（她自己诊断出来的）
+  const keepSkipAt = st?.date === today() && st?.action === 'skip'
+    && st?.fired !== true                       // 已投递过就不再沿用（走下面的 done 分支）
+    && Number.isFinite(Number(st.at))
+    && String(st.window ?? '') === String(w.label)
+  let at = keepSkipAt
+    ? Number(st.at)
+    : w.start + Math.floor(Math.random() * Math.max(1, w.end - w.start))
   if (w.wrap && at >= 1440) at -= 1440   // 落在午夜后那段 → 折算回当天分钟
-  if (at <= now) {
+  if (!keepSkipAt && at <= now) {
     // 该窗口已开始 → 顺延一点点；顺延点必须仍在窗口内
     at = now + 1 + Math.floor(Math.random() * 10)
     if (at >= 1440) at -= 1440
@@ -114,16 +139,19 @@ function makePlan() {
     } else {
       at = Math.min(w.end - 1, at)
     }
+  }
+
+  if (Math.random() < Number(cfg.skipChance ?? 0.3)) {
+    return {
+      date: today(), action: 'skip', fired: false, wakes: done, usedCount, window: w.label, endAt: w.end, withinWindow,
+      at, atText: hhmm(at),   // 不看也要"到点"✓（scheduler 会等到 at 才叫醒）
+      reason: `这次不想看（掷骰子掷到了「不看」那 ${Math.round((Number(cfg.skipChance ?? 0.3)) * 100)}%）`,
     }
-    if (Math.random() < Number(cfg.skipChance ?? 0.3)) {
-      return {
-        date: today(), action: 'skip', wakes: done, usedCount, window: w.label, endAt: w.end, withinWindow,
-        at, atText: hhmm(at),   // 2026-10-20 修：不看也要"到点"，否则会立刻被叫醒 ✗
-        reason: `这次不想看（掷骰子掷到了「不看」那 ${Math.round((Number(cfg.skipChance ?? 0.3)) * 100)}%）`,
-      }
-    }
+  }
+
+  usedCount[w.label] = nth   // 只有真要看的才消耗额度 ✓（skip 不消耗 ✓）
   return {
-    date: today(), action: 'wake', at, atText: hhmm(at), wakes: done, usedCount, window: w.label, withinWindow,
+    date: today(), action: 'wake', fired: false, at, atText: hhmm(at), wakes: done, usedCount, window: w.label, withinWindow,
     roll: 'watch', maxVideos: cfg.maxVideos ?? 5, createdAt: new Date().toISOString(),
   }
 }

@@ -40,6 +40,16 @@
 <body>
 <div class="wrap">
   <h1>🐟 养鱼 · 设置</h1>
+  <!-- 2026-10-20：首次安装提示（很多人卡在"找不到会话"和"没给完全权限"） -->
+  <div id="setupBanner" style="display:none;margin:10px 0 14px;padding:12px 14px;border-radius:10px;border:1px solid #7a5b1e;background:#2a2214;color:#f0d9a8;line-height:1.7">
+    <b>⚠️ 还没跑过启动测试</b><br>
+    装完插件先跑这一条（缺什么它会直接告诉你）：<br>
+    <code style="display:inline-block;margin:6px 0;padding:4px 8px;background:#111;border-radius:6px;color:#9fd">node ~/.dsh/plugins/dsh-bili-whale/tools/bili.mjs selftest</code><br>
+    然后注意两件事：<br>
+    ① 她的会话在 <b>工作区 → 未分组</b> 里（<b>不点开那个文件夹看不见</b>）<br>
+    ② 打开那个会话后 <b>给它「完全访问」权限</b>，否则她起不来干活<br>
+    <span style="opacity:.7">跑完 selftest 全绿后这条会自动消失 ✓</span>
+  </div>
   <div class="sub">她一次醒来：筛 N 条 → 深读几条 → 写两本日记 → 把值得的 @ 你。<span id="cfgPath"></span></div>
 
   <section>
@@ -211,6 +221,12 @@ function readWins() {
 }
 
 async function load() {
+  // 2026-10-20：首次安装提示 —— 读 /deps 里的 selftest 标记
+  try {
+    const st = await api('/dsh-bili/api/deps')
+    const banner = document.getElementById('setupBanner')
+    if (banner) banner.style.display = st?.selftestPassed ? 'none' : 'block'
+  } catch {}
   const r = await api('/dsh-bili/api/settings')
   if (!r.ok) { toast('读取失败：' + (r.error || '')); return }
   const c = r.config
