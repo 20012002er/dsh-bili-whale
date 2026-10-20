@@ -22,7 +22,7 @@ if (config().diary?.enabled === false) { console.log('（日记总开关关着 �
 const cmd = argv[0]
 const opt = {}
 for (let i = 1; i < argv.length; i += 1) {
-  if (argv[i].startsWith('--')) opt[argv[i].slice(2)] = argv[i + 1]?.startsWith('--') ? true : argv[++i]
+  if (argv[i].startsWith('--')) opt[argv[i].slice(2)] = argv[i + 1]?.startsWith('--') ? true : argv[++i] ?? true
   else if (!opt._a) opt._a = argv[i]
 }
 const HOME = (process.env.USERPROFILE || process.env.HOME || '/')

@@ -24,7 +24,7 @@ const bvid = argv.find((a) => !a.startsWith('--'))
 if (!bvid) { console.error('用法: node debrief.mjs <BV> [--bucket 30] [--top 5] [--grid 3x3] [--no-frames]'); process.exit(2) }
 const opt = {}
 for (let i = 0; i < argv.length; i += 1) {
-  if (argv[i].startsWith('--')) opt[argv[i].slice(2)] = argv[i + 1]?.startsWith('--') ? true : argv[++i]
+  if (argv[i].startsWith('--')) opt[argv[i].slice(2)] = argv[i + 1]?.startsWith('--') ? true : argv[++i] ?? true
 }
 const BUCKET = Number(opt.bucket ?? 30)
 const TOP = Number(opt.top ?? 5)
