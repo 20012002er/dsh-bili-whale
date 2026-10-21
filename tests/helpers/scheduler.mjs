@@ -44,4 +44,4 @@ const s2=startScheduler({sessionController:{create:async()=>{},prompt:async p=>m
 await s2.tick();s2.stop()
 assert.match(messages.at(-1),/今晚不看/);assert.ok(messages.at(-1).includes('关掉了推送'))
 assert.ok(messages.at(-1).includes('测试专属人设'))
-const end=JSON.parse(fs.readFileSync(state));assert.ok(end.skippedWindows.includes(skip.windowKey))
+const end=JSON.parse(fs.readFileSync(state));assert.ok((end.usedCount?.[skip.windowKey]??0)>0,'skip 应消耗一次机会')

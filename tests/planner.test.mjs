@@ -32,7 +32,9 @@ test('all skipped occurrences stay excluded after state saves', () => {
   const second=completePlan(makePlan(c,first,now,()=>0),now)
   assert.notEqual(first.windowKey,second.windowKey)
   assert.equal(makePlan(c,historyOf(second,now),now).action,'done')
-  assert.equal(second.skippedWindows.length,2)
+  // 2026-10-22：skip 改成消耗机会（不再拉黑窗口）→ 断言"两个窗口都消耗了"而不是黑名单长度
+  assert.equal(Object.keys(second.usedCount).length,2)
+  assert.equal(Object.values(second.usedCount).reduce((a,b)=>a+b,0),2)
 })
 test('one dated window cannot wake again after midnight', () => {
   const p=makePlan(night,{},time('21T23:10:00'),()=>0)
@@ -82,4 +84,23 @@ test('share policy enforces switch, score, reason and rank for both transports',
   assert.throws(()=>validateShare({share:{enabled:false}},good))
   for(const patch of [{score:undefined},{score:true},{score:21},{score:12},{reason:'短'},{rank:2}])
     assert.throws(()=>validateShare({}, {...good,...patch}))
+})
+
+test('skip 只消耗一次机会，wakes>1 的窗口不会被整段作废', () => {
+  // 2026-10-22 实测（她连报三次的那个）：窗口 03:47–04:10 wakes:5，
+  // 掷到不看之后整个窗口被拉黑 → 只醒 1 次就 done ✗
+  const c = cfg([{ start: '20:00', end: '24:00', wakes: 5 }], 0)   // skipChance=0 先都不看
+  const now = time('21T20:00:00')
+  // 第一条：把 skipChance 调成必跳过，拿一个 skip 计划
+  const skipCfg = { ...c, skipChance: 1 }
+  const p1 = makePlan(skipCfg, {}, now, () => 0)
+  assert.equal(p1.action, 'skip')
+  const after = completePlan(p1, now + 60_000)
+  assert.equal(after.usedCount[p1.windowKey], 1, 'skip 应占掉一次机会')
+  assert.equal(after.skippedWindows.length, 0, '不该把窗口拉黑')
+  // 第二条：同一个窗口还能继续排（还剩 4 次机会）
+  const p2 = makePlan(c, after, now + 11 * 60_000, () => 0)
+  assert.equal(p2.action, 'wake')
+  assert.equal(p2.windowKey, p1.windowKey)
+  assert.match(p2.withinWindow, /第 2\/5 次/)
 })

@@ -60,7 +60,9 @@ export function makePlan(cfg, state = {}, now = Date.now(), random = Math.random
   const history = historyOf(state, now)
   const done = reason => ({ ...history, action: 'done', done: true, reason })
   if (history.wakes >= maxWakes(cfg)) return done('今天醒来次数已用完（或所有窗口为零次）')
-  const pool = occurrences(cfg, now).filter(w => w.wakes > (history.usedCount[w.key] ?? 0) && !history.skippedWindows.includes(w.key))
+  // 2026-10-22：去掉 skippedWindows 过滤 —— 只看"这个窗口还剩几次机会"✓
+  //   （黑名单会让"跳过一次"= 整段作废，太狠了 ✗）
+  const pool = occurrences(cfg, now).filter(w => w.wakes > (history.usedCount[w.key] ?? 0))
     .sort((a, b) => a.endsAt - b.endsAt || a.startsAt - b.startsAt)
   if (!pool.length) return done('今天可用窗口已结束或已经处理')
 
@@ -103,7 +105,12 @@ export function completePlan(state, now = Date.now()) {
   if (state.fired) return state
   const h = historyOf(state, now)
   if (!state.windowKey) throw new Error('计划缺少窗口标识，请重新 plan')
-  if (state.action === 'skip') h.skippedWindows = [...new Set([...h.skippedWindows, state.windowKey])]
-  else if (state.action === 'wake') { h.usedCount[state.windowKey] = (h.usedCount[state.windowKey] ?? 0) + 1; h.wakes += 1 }
+  // 2026-10-22 修：以前 skip 会把【整个窗口】拉黑 ✗ → wakes:5 的窗口跳过一次就整段作废
+  //   现在「不看」只消耗一次机会（和看视频一样占一个 wake 位）✓
+  //   窗口用完由 usedCount >= wakes 自然判定，不再需要黑名单 ✓
+  if (state.action === 'skip' || state.action === 'wake') {
+    h.usedCount[state.windowKey] = (h.usedCount[state.windowKey] ?? 0) + 1
+    h.wakes += 1
+  }
   return { ...state, ...h, fired: true, woke: state.action === 'wake', wokeAt: new Date(now).toISOString() }
 }
