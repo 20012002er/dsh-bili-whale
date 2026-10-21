@@ -20,7 +20,7 @@ const bvid = argv.find((a) => !a.startsWith('--'))
 if (!bvid) { console.error('用法: node subtitles.mjs <BV> [--lan ai-zh] [--out 目录] [--print 12]'); process.exit(2) }
 const opt = {}
 for (let i = 0; i < argv.length; i += 1) {
-  if (argv[i].startsWith('--')) opt[argv[i].slice(2)] = argv[i + 1]?.startsWith('--') ? true : argv[++i]
+  if (argv[i].startsWith('--')) opt[argv[i].slice(2)] = argv[i + 1]?.startsWith('--') ? true : argv[++i] ?? true
 }
 const fmt = (s) => `${String(Math.floor(s / 60)).padStart(2, '0')}:${String(Math.floor(s % 60)).padStart(2, '0')}`
 
@@ -28,7 +28,16 @@ const cred = JSON.parse(fs.readFileSync(path.join((process.env.USERPROFILE || pr
 const UA = 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36'
 const cookie = `SESSDATA=${cred.sessdata}; bili_jct=${cred.bili_jct}; buvid3=${cred.buvid3}`
 const H = { 'user-agent': UA, referer: `https://www.bilibili.com/video/${bvid}/`, cookie }
-const jget = async (u) => (await fetch(u, { headers: H })).json()
+// ⚠️ 不能直接 `.json()`：B 站有些端点（尤其没字幕时的兜底 /x/v2/subtitle/web/view）会回 HTML，
+//    一旦 parse 失败就抛 SyntaxError，整个命令崩掉 —— 明明只是"这条视频没有字幕"。
+//    这里统一兜成 JSON：非 JSON 就返回 { code: -1, message: 'non-JSON …' }，让下游按"没有"处理。
+const jget = async (u) => {
+  const r = await fetch(u, { headers: H })
+  const text = await r.text()
+  try { return JSON.parse(text) } catch {
+    return { code: -1, message: `non-JSON response (HTTP ${r.status}, ${String(r.headers.get('content-type') || '').split(';')[0]})`, __nonJson: true }
+  }
+}
 
 // WBI 签名（各脚本里重复了一份，保持一致；要改就一起改）
 const MIXIN_TAB = [46,47,18,2,53,8,23,32,15,50,10,31,58,3,45,35,27,43,5,49,33,9,42,19,29,28,14,39,12,38,41,13,37,48,7,16,24,55,40,61,26,17,0,1,60,51,30,4,22,25,54,21,56,59,6,63,57,62,11,36,20,34,44,52]
