@@ -18,6 +18,26 @@ import { config } from '../lib/config.mjs'
 import { validateShare } from '../lib/share-policy.mjs'
 import { gate, record } from '../lib/quota-gate.mjs'
 
+// 稳定的设备 ID：只生成一次，之后永远复用 ✓
+//   · 存在 ~/.bili-ai/dev_id（0600）
+//   · 写坏了/删了会自动重建（重建等于"换了台设备"，但只发生一次 ✓）
+function stableDevId() {
+  const HOME = process.env.USERPROFILE || process.env.HOME || '.'
+  const file = path.join(HOME, '.bili-ai', 'dev_id')
+  try {
+    const v = fs.readFileSync(file, 'utf8').trim()
+    if (/^WEB-[0-9A-F-]{20,}$/i.test(v)) return v
+  } catch {}
+  const v = 'WEB-' + crypto.randomUUID().toUpperCase()
+  try {
+    fs.mkdirSync(path.dirname(file), { recursive: true })
+    fs.writeFileSync(file, v + '\n')
+    try { fs.chmodSync(file, 0o600) } catch {}
+  } catch {}
+  return v
+}
+
+
 const argv = process.argv.slice(2)
 const opt = {}
 for (let i = 0; i < argv.length; i += 1) {
@@ -107,7 +127,12 @@ async function send(toMid, text) {
   body.set('msg[msg_type]', '1')
   body.set('msg[msg_status]', '0')
   body.set('msg[timestamp]', String(Math.floor(Date.now() / 1000)))
-  body.set('msg[dev_id]', 'WEB-' + crypto.randomUUID().toUpperCase())
+  // 2026-10-22 修（她自己发现的，很准）：
+  //   以前每发一条私信就随机一个新 dev_id ✗ → 风控看到的是
+  //   「同一个人在不同设备之间高频切换」→ 小号私信容易被封控 ✗
+  //   真浏览器里这个值是【固定的】✓ 所以这里也生成一次、存起来、永久复用。
+  //   位置：~/.bili-ai/dev_id（和凭据放一起，换机器时跟着拷 ✓）
+  body.set('msg[dev_id]', stableDevId())
   body.set('msg[content]', JSON.stringify({ content: text }))
   body.set('csrf', String(cred.bili_jct))
   const r = await fetch('https://api.vc.bilibili.com/web_im/v1/web_im/send_msg', {
