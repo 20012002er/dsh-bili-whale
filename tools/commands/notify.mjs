@@ -158,6 +158,10 @@ try {
     //   私信自带三道闸（只发主人 / 必须互相关注 / 一天只锁定一个收信人）；失败只提示，不抛 ✗
     // 2026-10-19：DSH 的 Windows 沙箱禁止捕获子进程输出（管道 → EPERM）——
     //   用文件句柄重定向拿输出（不走管道），再原样转贴到 stdout/stderr。
+    // 2026-10-21 修（审查 P1-1）：原来这里写死 --go，且没有 DRY 判断 ✗
+    //   → notify "…" --dry 在 type=dm 时会【真的发出私信】✗
+    // 注意：这里在模块顶层，不能用 return ✗ → 用 exit(0)（预演到此为止 ✓）
+    if (DRY) { console.log('[dry] B站私信（不发送）：' + String(text).slice(0, 80)); process.exit(0) }
     const dmPath = path.join(path.dirname(fileURLToPath(import.meta.url)), 'dm.mjs')
     const outF = path.join(os.tmpdir(), `whale-dm-out-${process.pid}-${Date.now()}.txt`)
     const errF = path.join(os.tmpdir(), `whale-dm-err-${process.pid}-${Date.now()}.txt`)
