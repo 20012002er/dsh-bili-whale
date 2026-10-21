@@ -253,3 +253,42 @@ sudo apt install ffmpeg    # Debian / Ubuntu
 
 MIT（见 `LICENSE`）。第三方与免责见 [`NOTICE.md`](NOTICE.md)。
 本项目是**个人自用工具的公开版**，与 B 站、DeepSeek 官方无隶属关系；用你自己的账号做事，后果自负。
+
+<!-- 2026-10-21 issue#8 fix -->
+## 安装前提（2026-10-21 补，Issue #8）
+
+**这个插件必须挂在带网页界面的组件层上运行。**
+无界面（headless）模式不会提供 `sessionController` / `webServer` / `connection` 这三个服务，
+插件会一直停在：
+
+```
+dsh-bili-whale: pending (waiting for services: sessionController, webServer, connection)
+```
+
+这是**有意为之**：缺服务就不启动，好过起来一半。
+
+## 本地调试怎么起（正确写法）
+
+`web` 是**配置档的名字**，不是应用名 —— 参数要直接跟在配置档后面：
+
+```bash
+# ✓ 正确
+dsh --profile <配置档名> --port 3099 --no-open
+
+# ✗ 错误（会报 "too many arguments"）
+dsh --profile <配置档名> web --port 3099
+```
+
+## 找不到 node 运行时怎么办（Issue #8 第三处）
+
+插件**不会**拿主程序（Electron）顶替 node —— 那样不会报错，只会静默返回空输出 ✗
+找不到时它会显式报错并停止生物钟/监听/直播间：
+
+```
+[bili-whale] 找不到可用的 node 运行时（设置 DSH_NODE）
+```
+
+两件事现在能让你一眼看出它坏了：
+1. `node bili.mjs deps` 里有一行 **`node 运行时`**
+2. 设置页有一行 **「生物钟」**：正常显示「已启动（每 60 秒 tick）」，
+   坏了显示「✗ 没起来：<原因> —— 这样它永远不会醒」

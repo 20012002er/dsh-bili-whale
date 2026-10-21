@@ -57,6 +57,7 @@
 
   <section>
     <h2>① 账号</h2>
+    <div class="row"><label>生物钟</label><span id="schedState" class="hint">读取中…</span></div>
     <div class="row"><label>B站 cookie</label><span id="credState" class="hint">读取中…</span>
       <button class="ghost" id="btnDeps">依赖体检</button></div>
     <div class="row"><label>SESSDATA</label><input type="password" id="sessdata" placeholder="粘贴 SESSDATA（不回显已保存的值）"></div>
@@ -249,6 +250,12 @@ async function load() {
 }
 
 async function runDeps() {
+  // 2026-10-21：时钟是不是活的，一眼要看见（Issue #8-3）
+  const ss = $('schedState')
+  if (r.scheduler) {
+    ss.textContent = r.scheduler.ok ? ('✓ ' + r.scheduler.reason) : ('✗ 没起来：' + String(r.scheduler.reason).slice(0, 80) + ' —— 这样它永远不会醒 ✗')
+    ss.className = 'hint' + (r.scheduler.ok ? '' : ' bad')
+  }
   $('depsOut').textContent = '检查中…'
   const r = await api('/dsh-bili/api/deps')
   if (r.error) { $('depsOut').textContent = '✗ ' + r.error; return }
