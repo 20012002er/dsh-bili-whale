@@ -196,12 +196,19 @@ if (cmd === 'react' && opt.auto) {
     const found = []
     // ① 回复
     try {
-      const out = execFileSync(NODE_EXE, [here('./comment-digest.mjs'), '--hours', hours, '--pages', '1'], { encoding: 'utf8' })
+      // 2026-10-22 修（Issue #14）：以前拿人类可读文本做子串匹配 ✗
+      //   统计行/标签行里出现主人名也会命中 → 误记反馈 → 沉默衰减被清零 ✗
+      //   现在读 --json 的结构化结果，按 mid 精确比对 ✓
+      const out = execFileSync(NODE_EXE, [here('./comment-digest.mjs'), '--hours', hours, '--pages', '1', '--json'], { encoding: 'utf8' })
       const ownerName = String(config().owner?.name ?? '')
       const ownerMid = String(config().owner?.mid ?? '')
-      if ((ownerName && out.includes(ownerName)) || (ownerMid && out.includes(ownerMid))) {
+      // 从结构化结果里取「主人回了几条」✓
+      let digest = null
+      try { digest = JSON.parse(String(out).trim().split(/\r?\n/).pop() ?? '') } catch {}
+      const ownerReplyCount = Number(digest?.ownerReplies ?? 0)
+      if (ownerReplyCount > 0) {
         // 只把"和主人有关"的行拿去算哈希（内容变了才继续算新表态 ✓）
-        const lines = String(out).split(/\r?\n/).filter((l) => (ownerName && l.includes(ownerName)) || (ownerMid && l.includes(ownerMid)))
+        const lines = (digest?.ownerReplyItems ?? []).map((r) => `${r.time} [${r.kind}] ${r.who}：「${r.text}」`)
         const { createHash } = await import('node:crypto')
         found.push({ kind: 'reply', label: '回复', hash: createHash('sha1').update(lines.join('\n')).digest('hex') })
       }
