@@ -19,6 +19,7 @@ import fs from 'node:fs'
 import os from 'node:os'
 import path from 'node:path'
 import { config } from '../lib/config.mjs'
+import { NODE_EXE } from '../lib/nodebin.mjs'   // 2026-10-21：别用 process.execPath（Electron 里它是主程序 ✗）
 
 const argv = process.argv.slice(2)
 const DRY = argv.includes('--dry')
@@ -163,7 +164,7 @@ try {
     const fdO = fs.openSync(outF, 'w'); const fdE = fs.openSync(errF, 'w')
     let r
     try {
-      r = spawnSync(process.execPath, [dmPath, '--msg', String(text), '--go'], { stdio: ['ignore', fdO, fdE], timeout: 90000 })
+      r = spawnSync(NODE_EXE, [dmPath, '--msg', String(text), '--go'], { stdio: ['ignore', fdO, fdE], timeout: 90000 })
     } finally {
       try { fs.closeSync(fdO) } catch {}
       try { fs.closeSync(fdE) } catch {}
