@@ -63,7 +63,32 @@ export function makePlan(cfg, state = {}, now = Date.now(), random = Math.random
   const pool = occurrences(cfg, now).filter(w => w.wakes > (history.usedCount[w.key] ?? 0) && !history.skippedWindows.includes(w.key))
     .sort((a, b) => a.endsAt - b.endsAt || a.startsAt - b.startsAt)
   if (!pool.length) return done('今天可用窗口已结束或已经处理')
-  const w = pool[0], from = Math.max(now, w.startsAt)
+
+  // 2026-10-22 修（她自己报了三次）：
+  //   以前 atMs 是「从现在到窗口结束」里均匀随机 → 同一个窗口 wakes>1 时
+  //   完全可能连着抽两次很近的时刻（实测 22:53 / 22:59 / 23:11 挤在 18 分钟里）✗
+  //   现在给相邻两次之间加一个【最小间隔】：
+  //     · 下限 = cfg.minGapMin（默认 10 分钟）
+  //     · 同时不超过「窗口长度 / 该窗口次数」—— 次数多时自动压缩
+  //     · 窗口里放不下就跳过这个窗口，看下一个 ✓
+  const lastWoke = Number.isFinite(Date.parse(state.wokeAt ?? '')) ? Date.parse(state.wokeAt) : 0
+  const minGapMs = Math.max(
+    60_000,
+    Math.floor(Number(cfg.minGapMin ?? 10) * 60_000),
+  )
+  let picked = null
+  for (const cand of pool) {
+    // 2026-10-22：改成【硬下限】——窗口挤不下就少醒几次，不自动压缩间隔 ✗
+    //   （主人要的是"每次至少隔 10 分钟"，不是"尽量隔开"）
+    const gap = minGapMs
+    const earliest = Math.max(now, cand.startsAt, lastWoke + gap)
+    if (earliest >= cand.endsAt - 30_000) continue   // 这个窗口放不下了 ✓
+    picked = { cand, earliest }
+    break
+  }
+  if (!picked) return done('今天可用窗口里已经排不下下一次（间隔不够）')
+  const w = picked.cand
+  const from = picked.earliest
   const atMs = from + Math.floor(random() * Math.max(1, w.endsAt - from))
   const atDate = new Date(atMs), at = atDate.getHours() * 60 + atDate.getMinutes()
   const skip = random() < Math.min(1, Math.max(0, Number(cfg.skipChance ?? 0.3)))
