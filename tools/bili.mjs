@@ -61,10 +61,47 @@ if (!cmd || cmd === 'help' || cmd === '-h' || cmd === '--help') {
   console.log('  · 一次一条。批量、定时、多房间铺量不是这套工具的用途')
   process.exit(cmd ? 0 : 2)
 }
+// 2026-10-21 修 Issue #5：这 9 个脚本只认位置参数（argv[2]/argv[3]/…），
+//   但 help 和 README 教的是 --key 形式 → 参数原样透传进去后，脚本拿到的是字符串 "--bvid"，
+//   拼出的 URL 变成 ?bvid=--bvid → B站回 -400，看起来特别像 WBI 失效 / cookie 过期（极易误判 ✗）
+//   这里做一层翻译：只在"给出的键正好是期望顺序的前缀"时才转位置参数；给不全就不动，
+//   让脚本原来的报错照旧暴露出来（不猜、不静默 ✗）
+const POSITIONAL_SPEC = {
+  recon: ['bvid'],
+  thread: ['oid', 'bvid', 'root'],
+  'check-comment': ['rpid', 'aid', 'bvid'],
+  'check-dynamic': ['dyn'],
+  'check-mention': ['dyn', 'mid', 'name'],
+  'watch-video': ['bvid', 'grid', 'outDir'],
+  'dynamic-edit': ['dyn', 'textFile'],
+  search: ['kw', 'page'],
+  video: ['bvid'],
+}
+function translateNamed(cmd, args) {
+  const spec = POSITIONAL_SPEC[cmd]
+  if (!spec || !args.length) return args
+  if (!String(args[0]).startsWith('--')) return args          // 已经是位置参数 → 不动 ✓
+  const named = {}
+  const flags = []
+  for (let i = 0; i < args.length; i += 1) {
+    const a = String(args[i])
+    if (!a.startsWith('--')) return args                       // 混着位置参数 → 不动
+    const k = a.slice(2)
+    const v = args[i + 1]
+    if (v === undefined || String(v).startsWith('--')) flags.push('--' + k)
+    else { named[k] = v; i += 1 }
+  }
+  const given = spec.filter((k) => named[k] !== undefined)
+  if (!given.length) return args
+  const isPrefix = given.every((k, i) => k === spec[i])        // 必须按顺序前缀 ✓
+  if (!isPrefix) return args
+  return [...given.map((k) => named[k]), ...flags]
+}
+
 const entry = map[cmd]
 if (!entry) {
   console.error(`未知命令: ${cmd}\n跑 "node bili.mjs help" 看清单。`)
   process.exit(2)
 }
-const r = spawnSync(process.execPath, [path.join(here, entry[0]), ...rest], { stdio: 'inherit' })
+const r = spawnSync(process.execPath, [path.join(here, entry[0]), ...translateNamed(cmd, rest)], { stdio: 'inherit' })
 process.exit(r.status ?? 1)
