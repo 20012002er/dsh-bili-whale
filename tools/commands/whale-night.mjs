@@ -108,7 +108,19 @@ function makePlan() {
   const byUsed = (list) => list.filter((w) => (usedCount[w.label] ?? 0) < w.wakes && w.label !== skippedLabel)
   const pool = byUsed(open)
   if (!pool.length) return { date: today(), action: 'done', done: true, wakes: done, reason: '所有窗口的醒来次数都用完了' }
-  const w = pool[Math.floor(Math.random() * pool.length)]
+  // 2026-10-21 修（实测：19:24 的窄窗被静默跳过）：
+  //   原来在这里【随机挑一个】窗口 → 窗口之间变成竞争关系 ✗
+  //   窄的、早的窗口抽不到就整段错过 ✗（不是"排了没执行"，是根本没排）
+  //   改成【最早截止优先】：先排结束得最早的那个还没用完的窗口 ✓
+  //   窗口【内部】的时刻照样随机 ✓（"不要整点"那个设计意图保留）
+  const minutesUntilEnd = (win) => {
+    // 结束时刻还剩多少分钟（跨午夜的窗口折算到下一次结束）
+    const endAbs = win.wrap ? win.end : win.end
+    let d = endAbs - now
+    if (win.wrap && d <= 0) d += 1440
+    return d
+  }
+  const w = [...pool].sort((a, b2) => minutesUntilEnd(a) - minutesUntilEnd(b2))[0]
 
   // ── 2026-10-20 重写（社区反馈 + 实测）──────────────────────────────
   //   旧逻辑：usedCount 先 +1 → 再判断 skip → skip 也把"醒来次数"吃掉了 ✗
