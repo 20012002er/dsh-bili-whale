@@ -40,7 +40,25 @@ const MSG = String(opt.msg ?? '').trim()
 const HOME = process.env.USERPROFILE || process.env.HOME || '.'
 const CRED = path.join(HOME, '.bili-ai', 'credentials.json')
 const QUOTA = path.join(HOME, '.bili-ai', 'dm-quota.json')
-const cred = JSON.parse(fs.readFileSync(CRED, 'utf8'))
+// 2026-10-21：用共用凭据层（trim + 缺字段检查 + 错误码翻译）
+//   以前这里直接 JSON.parse 就用：bili_jct 空着也照发 → B站回裸的 code=-111，
+//   用户看到"体检全绿 / 能查互关"却发不出去，完全不知道该改什么 ✗
+const { loadCred, missingForWrite, explainCode, looksLikeJct } = await import('../lib/cred.mjs')
+const cred = loadCred()
+const miss = missingForWrite(cred)
+if (miss.length) {
+  console.error('✗ 凭据不完整，没法发私信：')
+  for (const m of miss) console.error('   · 缺 ' + m)
+  console.error('  → 设置页把 SESSDATA 和 bili_jct 【两个都】重新粘贴一次并保存 ✓')
+  process.exit(2)
+}
+// 只检查"有没有"不够 —— 截断/粘错的 bili_jct 一样会让 B 站回 -111 ✗
+if (!looksLikeJct(cred.bili_jct)) {
+  console.error('⚠️ bili_jct 格式不像（长度 ' + String(cred.bili_jct).length + '，B站 目前是 32 位十六进制）')
+  console.error('   发送大概率会被拒（code=-111 CSRF 校验失败）—— 建议回设置页重新粘贴一次')
+  console.error('   （只读接口不受影响，所以"依赖体检全绿"不代表能发东西 ✗）')
+  console.error('')
+}
 const cfg = config()
 const OWNER = String(cfg.owner?.mid ?? '').trim()
 const OWNER_NAME = String(cfg.owner?.name ?? '主人')
@@ -152,5 +170,5 @@ if (r.code === 0) {
   console.log(`  ✓ 已发送（HTTP ${r.http}）${SHARE ? ' · 已记入分享额度 ✓' : ' · 推送不占额度 ✓'}`)
   process.exit(0)
 }
-console.error(`  ✗ 发送失败：HTTP ${r.http} code=${r.code} ${r.message ?? ''}`)
+console.error(`  ✗ 发送失败：HTTP ${r.http} ${explainCode(r.code)}${r.message ? `（B站原文：${r.message}）` : ''}`)
 process.exit(1)

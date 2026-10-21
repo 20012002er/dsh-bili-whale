@@ -47,6 +47,11 @@ try {
   const has = !!cred.sessdata && !!cred.bili_jct
   line(has ? OK : NO, 'B站凭据', has ? '已保存（cookie）' : '缺 sessdata / bili_jct')
   line(cred.buvid3 ? OK : WARN, 'buvid3', cred.buvid3 ? '有' : '缺（部分接口可能被拦，跑一次 `node bili.mjs session` 会补）')
+  // 2026-10-21：bili_jct 是"能不能发东西"的关键 —— 只读全绿但一发就 code=-111，最常见就是它 ✗
+  const jct = String(cred.bili_jct ?? '')
+  if (!jct) line(NO, 'bili_jct（写操作）', '空着 —— 发私信/评论/收藏都会失败（code=-111）→ 设置页重新粘贴一次')
+  else if (!/^[0-9a-fA-F]{32}$/.test(jct)) line(WARN, 'bili_jct（写操作）', '格式不像（长度 ' + jct.length + '，正常 32 位十六进制）—— 可能复制时截断了')
+  else line(OK, 'bili_jct（写操作）', '格式正常（和 SESSDATA 是否同一账号，只能靠一次真实写入验证）')
 } catch {
   line(NO, 'B站凭据', '没有 ' + CRED + ' —— 设置页粘贴 cookie 后保存')
 }
