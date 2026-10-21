@@ -33,7 +33,7 @@ function stableDevId() {
     fs.mkdirSync(path.dirname(file), { recursive: true })
     fs.writeFileSync(file, v + '\n')
     try { fs.chmodSync(file, 0o600) } catch {}
-  } catch {}
+  } catch (e) { throw new Error('无法保存私信设备 ID，已停止发送：' + e.message) }
   return v
 }
 

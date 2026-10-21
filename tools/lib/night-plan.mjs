@@ -48,7 +48,7 @@ export function historyOf(state = {}, now = Date.now()) {
   const cutoff = new Date(now); cutoff.setDate(cutoff.getDate() - 3)
   for (const key of Object.keys(usedCount)) if (key.slice(0, 10) < dayOf(cutoff)) delete usedCount[key]
   return { schema: 2, date: dayOf(now), wakes: state.date === dayOf(now) ? Number(state.wakes ?? 0) : 0,
-    usedCount, skippedWindows: [...skippedWindows].filter(key => key.slice(0, 10) >= dayOf(cutoff)) }
+    wokeAt: state.wokeAt ?? null, usedCount, skippedWindows: [...skippedWindows].filter(key => key.slice(0, 10) >= dayOf(cutoff)) }
 }
 export function isPending(state, now = Date.now()) {
   return state?.schema === 2 && ['wake', 'skip'].includes(state.action) && !state.fired && !state.woke &&
@@ -76,7 +76,7 @@ export function makePlan(cfg, state = {}, now = Date.now(), random = Math.random
   const lastWoke = Number.isFinite(Date.parse(state.wokeAt ?? '')) ? Date.parse(state.wokeAt) : 0
   const minGapMs = Math.max(
     60_000,
-    Math.floor(Number(cfg.minGapMin ?? 10) * 60_000),
+    Math.floor((Number.isFinite(Number(cfg.minGapMin)) ? Number(cfg.minGapMin) : 10) * 60_000),
   )
   let picked = null
   for (const cand of pool) {

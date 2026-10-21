@@ -2,6 +2,13 @@ import fs from 'node:fs'
 globalThis.fetch = async (url, opts = {}) => {
   fs.appendFileSync(process.env.TEST_REQUESTS, JSON.stringify({url:String(url),method:opts.method ?? 'GET'})+'\n')
   let data
+  if (process.env.TEST_FEEDS && String(url).includes('/x/msgfeed/')) {
+    const feeds=JSON.parse(fs.readFileSync(process.env.TEST_FEEDS,'utf8'))
+    const kind=new URL(String(url)).pathname.split('/').pop()
+    if(feeds[kind]?.error)throw Error('mock inbox unavailable')
+    data={code:0,data:{items:feeds[kind]??[]}}
+    return {status:200,ok:true,json:async()=>data}
+  }
   if (String(url).includes('/nav')) data={code:0,data:{isLogin:true,mid:111,uname:'test-account'}}
   else if(String(url).includes('/x/relation'))data={code:0,data:{attribute:6}}
   else if(String(url).includes('/send_msg'))data={code:0,data:{}}

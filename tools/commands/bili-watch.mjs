@@ -7,7 +7,7 @@
 // 依赖：ffmpeg（查找顺序见 lib/ffmpeg.mjs：$FFMPEG → PATH → bin/ → ~/.dsh/bili-whale/bin → 本机剪映）
 import fs from 'node:fs'
 import path from 'node:path'
-import { execFileSync } from 'node:child_process'
+import { execFileSync } from '../lib/capture.mjs'
 import { requireFfmpeg } from '../lib/ffmpeg.mjs'
 import { dshPath } from '../lib/paths.mjs'
 

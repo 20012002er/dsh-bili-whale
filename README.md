@@ -1,3 +1,7 @@
+# 本地更新修复版 0.4.1-local.1
+
+基于上游 0.4.1 / 680bac8，新增及修复说明、GitHub 全部 issue/PR 核对、升级步骤见 [LOCAL-UPDATE.md](LOCAL-UPDATE.md)。本地回归 39 个用例通过。下方保留上游说明；新增目录、间隔和 @ 总结选项以本地更新说明为准。
+
 # dsh-bili-whale
 
 > 本包为人设版审查修复包 `0.3.1-audit.1`。升级步骤、修复范围及回归测试见 [AUDIT-FIXES.md](AUDIT-FIXES.md)。以该说明为准；下方保留原项目介绍。

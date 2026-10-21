@@ -8,7 +8,7 @@
 // 这个命令把"该确认的事"列成一张表，缺哪项就直说缺哪项。
 import fs from 'node:fs'
 import path from 'node:path'
-import { execFileSync } from 'node:child_process'
+import { execFileSync } from '../lib/capture.mjs'
 import { fileURLToPath } from 'node:url'
 import { dshPath } from '../lib/paths.mjs'
 import { NODE_EXE } from '../lib/nodebin.mjs'   // 2026-10-21：别用 process.execPath（Electron 里它是主程序 ✗）

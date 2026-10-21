@@ -45,3 +45,17 @@ await s2.tick();s2.stop()
 assert.match(messages.at(-1),/今晚不看/);assert.ok(messages.at(-1).includes('关掉了推送'))
 assert.ok(messages.at(-1).includes('测试专属人设'))
 const end=JSON.parse(fs.readFileSync(state));assert.ok((end.usedCount?.[skip.windowKey]??0)>0,'skip 应消耗一次机会')
+// Owner mention summary is wired into the real listener, once per fresh batch.
+now=new RealDate('2026-10-24T12:00:00').getTime()
+cfg.owner={mid:'222'};cfg.listen={comment:true,allDay:true,commentIntervalSec:60,dm:false,live:false,mentionSummary:true}
+fs.writeFileSync(process.env.BILI_WHALE_CONFIG,JSON.stringify(cfg))
+process.env.TEST_FEEDS=path.join(process.env.USERPROFILE,'listen-feeds.json')
+fs.writeFileSync(process.env.TEST_FEEDS,JSON.stringify({reply:[],at:[]}))
+const s3=startScheduler({sessionController:{create:async()=>{},prompt:async p=>messages.push(p.content[0].text)}},{dshHome:dsh,biliMjs:'unused',cwd:process.env.USERPROFILE})
+await s3.listenTick()
+now+=61000
+fs.writeFileSync(process.env.TEST_FEEDS,JSON.stringify({reply:[],at:[{id:'request1',at_time:Math.floor(now/1000),user:{mid:'222',nickname:'Owner'},item:{source_content:'请总结这个视频',uri:'https://www.bilibili.com/video/BV1234567890'}}]}))
+const countBefore=messages.length
+await s3.listenTick();assert.equal(messages.length,countBefore+1);assert.match(messages.at(-1),/【主人请求总结】/)
+now+=61000;await s3.listenTick();assert.equal(messages.length,countBefore+1)
+s3.stop()

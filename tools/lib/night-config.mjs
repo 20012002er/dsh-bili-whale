@@ -5,5 +5,5 @@ export function readNightConfig(home = DSH_HOME) {
   let user = {}, legacy = {}
   try { user = JSON.parse(fs.readFileSync(process.env.BILI_WHALE_CONFIG || path.join(home, 'bili-whale.config.json'), 'utf8')).night ?? {} } catch {}
   try { legacy = JSON.parse(fs.readFileSync(path.join(home, 'whale-night.config.json'), 'utf8')) } catch {}
-  return { windows: [{ start: '20:00', end: '24:00', wakes: 1 }], skipChance: 0.3, maxVideos: 5, ...user, ...legacy }
+  return { windows: [{ start: '20:00', end: '24:00', wakes: 1 }], skipChance: 0.3, minGapMin: 10, maxVideos: 5, ...user, ...legacy }
 }

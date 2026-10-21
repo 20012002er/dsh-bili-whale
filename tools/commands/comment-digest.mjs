@@ -13,6 +13,7 @@
 //   node bili.mjs comment-digest [--hours 24] [--pages 2] [--only-unread] [--max-resolve 20] [--raw]
 //     --raw          不核实正文，直接用收件箱字段（快，但可能不准）
 import fs from 'node:fs'
+import { config } from '../lib/config.mjs'
 import path from 'node:path'
 import { makeHeaders, pullFeed, resolveLatestReply } from '../lib/msgfeed.mjs'
 
@@ -38,8 +39,8 @@ const now = Math.floor(Date.now() / 1000)
 const since = now - HOURS * 3600
 const reply = await pullFeed('reply', { headers: H, pages: PAGES }).catch((e) => ({ items: [], err: e.message, lastView: 0 }))
 const at = await pullFeed('at', { headers: H, pages: PAGES }).catch((e) => ({ items: [], err: e.message, lastView: 0 }))
-if (reply.err) console.log(`（回复收件箱读不到：${reply.err}）`)
-if (at.err) console.log(`（@收件箱读不到：${at.err}）`)
+if (reply.err) console.error(`（回复收件箱读不到：${reply.err}）`)
+if (at.err) console.error(`（@收件箱读不到：${at.err}）`)
 
 let all = [...reply.items, ...at.items].filter((x) => x.t === 0 || x.t >= since)
 if (ONLY_UNREAD) {
@@ -55,8 +56,8 @@ say(`【B 站 · 谁找过人家】最近 ${HOURS} 小时`)
 say(`共 ${all.length} 条 —— 回复 ${replies.length} · @ ${ats.length}${ONLY_UNREAD ? '（只看未读）' : ''}${RAW ? '（未核实正文）' : ''}`)
 if (!all.length) {
   if (JSON_OUT) {
-    const ownerMid0 = String(((() => { try { return JSON.parse(fs.readFileSync(path.join((process.env.USERPROFILE || process.env.HOME || '/'), '.dsh', 'bili-whale.config.json'), 'utf8')).owner?.mid ?? '' } catch { return '' } })()))
-    console.log(JSON.stringify({ ok: true, hours: HOURS, count: 0, reply: 0, at: 0, ownerReplies: 0, items: [], ownerMid: ownerMid0 }))
+    const ownerMid0 = String(config().owner?.mid ?? '')
+    console.log(JSON.stringify({ ok: !reply.err && !at.err, errors: [reply.err, at.err].filter(Boolean), hours: HOURS, count: 0, reply: 0, at: 0, ownerReplies: 0, ownerReplyItems: [], items: [], ownerMid: ownerMid0 }))
   } else console.log('\n安静得很，没人找。')
   process.exit(0)
 }
@@ -84,7 +85,7 @@ for (const x of all) {
   const real = await realText(x)
   const text = (real.text || '(读不到正文)').slice(0, 80)
   rows.push({
-    kind: x.kind, who: x.who, mid: String(x.mid ?? ''),
+    id: x.id, kind: x.kind, who: x.who, mid: String(x.mid ?? ''),
     time: new Date((real.ctime || x.t) * 1000).toISOString(),
     text, rpid: String(real?.rpid || x.parent || ''),
     oid: x.oid, root: x.root, business: x.business, uri: x.uri,
@@ -97,13 +98,12 @@ for (const x of all) {
 
 if (JSON_OUT) {
   // 主人回了几条：按 mid 精确比对（没有 mid 才退回昵称）✓ 绝不做子串匹配 ✗
-  let cfg = {}
-  try { cfg = JSON.parse(fs.readFileSync(path.join((process.env.USERPROFILE || process.env.HOME || '/'), '.dsh', 'bili-whale.config.json'), 'utf8')) } catch {}
+  const cfg = config()
   const oMid = String(cfg.owner?.mid ?? '')
   const oName = String(cfg.owner?.name ?? '')
   const ownerItems = rows.filter((r) => (oMid && r.mid === oMid) || (!oMid && oName && r.who === oName))
   console.log(JSON.stringify({
-    ok: true, hours: HOURS,
+    ok: !reply.err && !at.err, errors: [reply.err, at.err].filter(Boolean), hours: HOURS,
     count: rows.length, reply: rows.filter((r) => r.kind === 'reply').length, at: rows.filter((r) => r.kind === 'at').length,
     ownerMid: oMid, ownerReplies: ownerItems.length, ownerReplyItems: ownerItems,
     items: rows,

@@ -13,7 +13,8 @@
 //
 // 配置（~/.dsh/bili-whale.config.json 的 notify 段）：
 //   { "type": "none|desktop|webhook|command", "url": "", "template": "text|markdown", "cmd": "" }
-import { execFileSync, spawnSync } from 'node:child_process'
+import { spawnSync } from 'node:child_process'
+import { execFileSync } from '../lib/capture.mjs'
 import { fileURLToPath } from 'node:url'
 import fs from 'node:fs'
 import os from 'node:os'
@@ -95,11 +96,13 @@ function sendDesktop() {
   const script = path.join(os.tmpdir(), `dw-toast-${Date.now()}.ps1`)
   const xml = path.join(os.tmpdir(), `dw-toast-${Date.now()}.xml`)
   fs.writeFileSync(script, ps, 'utf8')
-  execFileSync('powershell.exe', ['-NoProfile', '-ExecutionPolicy', 'Bypass', '-File', script], {
+  try { execFileSync('powershell.exe', ['-NoProfile', '-ExecutionPolicy', 'Bypass', '-File', script], {
     env: { ...process.env, DW_TITLE: String(title), DW_TEXT: String(text), DW_XML: xml },
     encoding: 'utf8', timeout: 20000, stdio: ['ignore', 'pipe', 'pipe'],
   })
-  fs.rmSync(script, { force: true })
+  } finally {
+    fs.rmSync(script, { force: true }); fs.rmSync(xml, { force: true })
+  }
   console.log('桌面通知已发送 ✓')
 }
 
@@ -176,6 +179,7 @@ try {
     if (fs.existsSync(outF)) process.stdout.write(fs.readFileSync(outF, 'utf8'))
     if (r?.status !== 0) console.error((fs.existsSync(errF) ? fs.readFileSync(errF, 'utf8') : '').trim() || '（私信发送失败）')
     fs.rmSync(outF, { force: true }); fs.rmSync(errF, { force: true })
+    if (r?.error || r?.status !== 0) throw new Error('私信推送失败，未确认送达')
   } else if (type === 'stdout') {
     console.log(`[通知] ${title}\n${text}`)
   } else if (type === 'file') {

@@ -14,6 +14,7 @@
 // 约定：check 只挡"发言类"动作（comment / dynamic / danmaku）；读操作永远不受限。
 import fs from 'node:fs'
 import path from 'node:path'
+import { newReplies } from '../lib/feedback.mjs'
 import { config } from '../lib/config.mjs'
 import { NODE_EXE } from '../lib/nodebin.mjs'   // 2026-10-21：别用 process.execPath（Electron 里它是主程序 ✗）
 
@@ -190,7 +191,7 @@ if (cmd === 'ask') {
 
 if (cmd === 'react' && opt.auto) {
   try {
-    const { execFileSync } = await import('node:child_process')
+    const { execFileSync } = await import('../lib/capture.mjs')
     const here = (f) => decodeURIComponent(new URL(f, import.meta.url).pathname).replace(/^\/([A-Za-z]:)/, '$1')
     const hours = String(opt.hours ?? 72)
     const found = []
@@ -210,7 +211,7 @@ if (cmd === 'react' && opt.auto) {
         // 只把"和主人有关"的行拿去算哈希（内容变了才继续算新表态 ✓）
         const lines = (digest?.ownerReplyItems ?? []).map((r) => `${r.time} [${r.kind}] ${r.who}：「${r.text}」`)
         const { createHash } = await import('node:crypto')
-        found.push({ kind: 'reply', label: '回复', hash: createHash('sha1').update(lines.join('\n')).digest('hex') })
+        found.push({ kind: 'reply', label: '回复', items: digest.ownerReplyItems, hash: createHash('sha1').update(lines.join('\n')).digest('hex') })
       }
     } catch { /* 收件箱失败不影响点赞这一路 */ }
     // ② 点赞（--json 里 ownerLiked 是确定数字，比抠文本稳）
@@ -243,12 +244,14 @@ if (cmd === 'react' && opt.auto) {
       const fb = loadFeedback()
       const nowIso = new Date().toISOString()
       let changed = false
+      let newest = Number.isFinite(Date.parse(fb.last)) ? Date.parse(fb.last) : 0
       fb.events = [...(fb.events ?? [])]
       for (const f of found) {
         if (f.kind === 'like') {
           const prev = Number(fb.lastLikeTime ?? 0)
           if (f.maxTime > prev) {
             fb.lastLikeTime = f.maxTime
+            newest = Math.max(newest, Math.min(Date.now(), f.maxTime * 1000))
             // 只有"这次新出现的"才记（比上次 maxTime 新的那些）✓
             const fresh = (f.liked ?? []).filter((x) => x.likeTime > prev)
             if (fresh.length) {
@@ -274,21 +277,26 @@ if (cmd === 'react' && opt.auto) {
             changed = true
           }
         } else if (f.kind === 'reply') {
-          const prev = String(fb.lastReplyHash ?? '')
-          if (f.hash !== prev) {
-            fb.lastReplyHash = f.hash
-            fb.events.push({ at: nowIso, note: 'auto: 检测到主人（回复）' })
+          const reply = newReplies(f.items, fb)
+          const migrated = !fb.lastReplyTime && fb.lastReplyHash === f.hash
+          fb.lastReplyHash = f.hash
+          fb.lastReplyTime = reply.time
+          fb.replyIds = reply.ids
+          if (reply.fresh.length && !migrated) {
+            newest = Math.max(newest, reply.time)
+            fb.events.push({ at: new Date(reply.time).toISOString(), note: 'auto: 检测到主人（回复）' })
             changed = true
           }
         }
       }
       fb.events = fb.events.slice(-200)
       if (changed) {
-        fb.last = nowIso
+        fb.last = new Date(newest).toISOString()
         saveFeedback(fb)
         const names = found.filter((f) => (f.kind === 'like' ? f.maxTime > Number(fb.lastLikeTime ?? 0) - 1 : true)).map((f) => f.label)
         console.log(`✓ 自动识别到主人的【新】表态（${names.join(' / ') || found.map((f) => f.label).join(' / ')}）→ 已记一次反馈（沉默清零）`)
       } else {
+        saveFeedback(fb) // Persist migrated IDs even without a new reaction.
         console.log('（近 ' + hours + ' 小时有主人的表态，但都是【已经记过的】→ 不重复记 ✓ 沉默继续累计）')
       }
     } else {

@@ -26,6 +26,46 @@ test('ordinary owner DM does not require sharing score',t=>{const env=sandbox(t,
 test('comment uses the same score rule',t=>{const env=sandbox(t);const r=run(env,'tools/commands/comment.mjs',['--oid','1','--bvid','BV1234567890','--message','hello','--share','--auto','--go']);assert.notEqual(r.status,0);assert.equal(requests(env),'')})
 test('custom home, persona, diary and failed approval recovery',t=>{const r=run(sandbox(t),'tests/helpers/plugin.mjs');assert.equal(r.status,0,r.stderr)})
 test('successful approval removes draft',t=>{const env=sandbox(t);env.TEST_SEND_SUCCESS='1';const r=run(env,'tests/helpers/plugin.mjs');assert.equal(r.status,0,r.stderr)})
-test('missing runtime reports scheduler failure',t=>{const env=sandbox(t);delete env.DSH_NODE;env.TEST_NO_NODE='1';const r=run(env,'tests/helpers/plugin.mjs');assert.equal(r.status,0,r.stderr)})
+test('missing runtime reports scheduler failure',t=>{const env=sandbox(t);delete env.DSH_NODE;env.PATH='';delete env.ProgramFiles;env.TEST_NO_NODE='1';const r=run(env,'tests/helpers/plugin.mjs');assert.equal(r.status,0,r.stderr)})
 test('real scheduler: midnight, retries, history, persona and disposal',t=>{const r=run(sandbox(t),'tests/helpers/scheduler.mjs');assert.equal(r.status,0,r.stderr)})
 test('CLI plan is stable between processes',t=>{const env=sandbox(t);const a=run(env,'tools/commands/whale-night.mjs',['plan']);const b=run(env,'tools/commands/whale-night.mjs',['plan']);assert.equal(a.status,0,a.stderr);assert.deepEqual(JSON.parse(a.stdout),JSON.parse(b.stdout))})
+
+test('digest uses custom config, exact identity and clean JSON on partial failure',t=>{
+  const env=sandbox(t), now=Math.floor(Date.now()/1000)
+  env.TEST_FEEDS=path.join(env.HOME,'feeds.json')
+  const item=(id,mid,nickname)=>({id,user:{mid,nickname},reply_time:now,item:{source_content:'Owner 222 mentioned in text',source_id:id}})
+  fs.writeFileSync(env.TEST_FEEDS,JSON.stringify({reply:[item('1',999,'Owner'),item('2',222,'Renamed')],at:[]}))
+  let r=run(env,'tools/commands/comment-digest.mjs',['--json']);assert.equal(r.status,0,r.stderr)
+  let j=JSON.parse(r.stdout);assert.equal(j.ownerReplies,1);assert.equal(j.ownerReplyItems[0].id,'2')
+  fs.writeFileSync(env.TEST_FEEDS,JSON.stringify({reply:{error:true},at:[]}))
+  r=run(env,'tools/commands/comment-digest.mjs',['--json']);j=JSON.parse(r.stdout);assert.equal(j.ok,false);assert.equal(j.ownerReplies,0)
+})
+test('quota react does not refresh silence when an old result disappears',t=>{
+  const env=sandbox(t), now=Math.floor(Date.now()/1000)-3600
+  env.TEST_FEEDS=path.join(env.HOME,'feeds.json')
+  const a={id:'1',user:{mid:222,nickname:'Owner'},reply_time:now,item:{source_content:'reply A',source_id:'1'}}
+  const b={...a,id:'2',reply_time:now+10,item:{source_content:'reply B',source_id:'2'}}
+  fs.writeFileSync(env.TEST_FEEDS,JSON.stringify({reply:[a,b],at:[],like:[]}))
+  let r=run(env,'tools/commands/quota.mjs',['react','--auto']);assert.equal(r.status,0,r.stderr)
+  const file=path.join(env.HOME,'.bili-ai/feedback.json'),before=JSON.parse(fs.readFileSync(file))
+  assert.equal(before.events.length,1);assert.equal(Date.parse(before.last),(now+10)*1000)
+  fs.writeFileSync(env.TEST_FEEDS,JSON.stringify({reply:[b],at:[],like:[]}))
+  r=run(env,'tools/commands/quota.mjs',['react','--auto']);assert.equal(r.status,0,r.stderr)
+  const after=JSON.parse(fs.readFileSync(file));assert.equal(after.last,before.last);assert.equal(after.events.length,1)
+})
+test('stable device ID reused across sends and persistence failure stops send',t=>{
+  const env=sandbox(t), id=path.join(env.HOME,'.bili-ai/dev_id')
+  assert.equal(run(env,'tools/commands/dm.mjs',['--msg','one','--go']).status,0)
+  const first=fs.readFileSync(id,'utf8')
+  assert.equal(run(env,'tools/commands/dm.mjs',['--msg','two','--go']).status,0)
+  assert.equal(fs.readFileSync(id,'utf8'),first)
+  fs.unlinkSync(id);fs.mkdirSync(id)
+  assert.notEqual(run(env,'tools/commands/dm.mjs',['--msg','three','--go']).status,0)
+  assert.equal((requests(env).match(/POST/g)??[]).length,2)
+})
+
+test('notify returns failure when DM delivery fails',t=>{
+  const env=sandbox(t,{notify:{type:'dm'},owner:{mid:'',name:''}})
+  const r=run(env,'tools/commands/notify.mjs',['summary'])
+  assert.notEqual(r.status,0);assert.equal((requests(env).match(/POST/g)??[]).length,0)
+})
