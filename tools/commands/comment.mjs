@@ -15,6 +15,7 @@ import crypto from 'node:crypto'
 import { execFileSync } from 'node:child_process'
 import { fileURLToPath } from 'node:url'
 import { config } from '../lib/config.mjs'
+import { validateShare } from '../lib/share-policy.mjs'
 import { NODE_EXE } from '../lib/nodebin.mjs'   // 2026-10-21：别用 process.execPath（Electron 里它是主程序 ✗）
 
 // ── 限额闸（B 档「限额自主」的代码强制部分，2026-10-14 主人选 B 档）────────────────
@@ -94,23 +95,8 @@ if (SHARE) {
   if (!AUTO) { console.error('--share 必须与 --auto 同传（分享型也是"她自己决定说的"）'); process.exit(2) }
   const ow = config().owner ?? {}
   if (!ow.name) { console.error('--share 需要先配置 owner.name（要 @ 谁）'); process.exit(2) }
-  // ── 「标尺」（2026-10-18 加，Kimi 提议 + 主人认可）────────────────────
-  // 把"值不值"从感觉变成可审计的流程：
-  //   ① --reason  必填（白纸黑字写"为什么值得占用主人一次注意力"）
-  //   ② --score   必填且 ≥ config.share.minScore（默认 13 = 超过 12 分）
-  //   ③ --rank    只能是 1（当天深读里的第一名 —— 相对比较比绝对打分稳）
-  // 三项任一不过 → 拒绝发送；"今天没有值得发的"本身就是合法结果 ✓
-  {
-    const reason = String(args.get('reason') ?? '').trim()
-    if (reason.length < 8) { console.error('--share 必须带 --reason "为什么值得占用主人一次注意力"（≥8 字）'); process.exit(2) }
-    const minScore = Number(config().share?.minScore ?? 7)
-    const score = Number(args.get('score'))
-    if (!Number.isFinite(score) || String(args.get('score') ?? '') === '') { console.error(`--share 必须带 --score（每项 0-4，满 20；阈值 ${minScore}，超过 12 就发）`); process.exit(2) }
-    if (score < minScore) { console.error(`✗ 评分 ${score} < 阈值 ${minScore} → 这条不值得发（"今天没有值得发的"是合法结果）`); process.exit(2) }
-    const rank = Number(args.get('rank') ?? 1)
-    if (rank !== 1) { console.error('--share 只允许 --rank 1（当天深读里的第一名）'); process.exit(2) }
-    console.log(`[标尺] 分数 ${score}/20（阈值 ${minScore}：超过 12 就发）· 排名 #${rank} · 理由：${reason.slice(0, 60)}`)
-  }
+  try { validateShare(config(), { reason: args.get('reason'), score: args.get('score'), rank: args.get('rank') ?? 1 }) }
+  catch (e) { console.error(e.message); process.exit(2) }
 
   const want = `@${ow.name}`
   const body = String(message ?? '').trimStart()

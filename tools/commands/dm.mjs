@@ -15,6 +15,7 @@ import fs from 'node:fs'
 import path from 'node:path'
 import crypto from 'node:crypto'
 import { config } from '../lib/config.mjs'
+import { validateShare } from '../lib/share-policy.mjs'
 import { gate, record } from '../lib/quota-gate.mjs'
 
 const argv = process.argv.slice(2)
@@ -36,6 +37,9 @@ const DRY = !!opt.dry
 const GO = !!opt.go
 const STATUS = !!opt.status
 const MSG = String(opt.msg ?? '').trim()
+if (SHARE && !STATUS) {
+  try { validateShare(config(), opt) } catch (e) { console.error(e.message); process.exit(2) }
+}
 
 const HOME = process.env.USERPROFILE || process.env.HOME || '.'
 const CRED = path.join(HOME, '.bili-ai', 'credentials.json')
@@ -79,7 +83,9 @@ const ONE_TARGET_PER_DAY = true  // ① 一天只锁定 1 个收信人（条数�
 const ONLY_TO = OWNER            // ② 只发给主人
 const REQUIRE_MUTUAL = true      // ③ 必须互关
 // 分享型的 target：优先正文里的 BV（"同一视频 7 天一次"才判得准 ✓），否则退回 dm:<mid>
-const SHARE_TARGET = String(opt.target ?? "").trim() || (BV ? ("BV:" + BV) : ("dm:" + String(ONLY_TO)))
+const targetBV = BV || (String(opt.target ?? "").match(/^(?:BV:)?(BV[0-9A-Za-z]{10})$/) ?? [])[1]
+if (SHARE && !STATUS && !targetBV) { console.error("分享需要正文或 --target 中的有效 BV 号"); process.exit(2) }
+const SHARE_TARGET = targetBV ? "BV:" + targetBV : "dm:" + ONLY_TO
 
 async function me() {
   const nav = await jget('https://api.bilibili.com/x/web-interface/nav')

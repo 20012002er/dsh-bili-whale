@@ -32,3 +32,6 @@ export const homePath = (...parts) => path.join(HOME, ...parts)
 
 /** 插件配置文件（保留 BILI_WHALE_CONFIG 覆盖）。 */
 export const configPath = process.env.BILI_WHALE_CONFIG || dshPath('bili-whale.config.json')
+
+/** Credentials are per OS user, independent of DSH_HOME. */
+export const credentialsPath = homePath('.bili-ai', 'credentials.json')

@@ -1,0 +1,31 @@
+import test from 'node:test'
+import assert from 'node:assert/strict'
+import fs from 'node:fs'
+import os from 'node:os'
+import path from 'node:path'
+import {spawnSync} from 'node:child_process'
+import {fileURLToPath,pathToFileURL} from 'node:url'
+const root=fileURLToPath(new URL('../',import.meta.url))
+function sandbox(t,cfg={}) {
+  const home=fs.mkdtempSync(path.join(os.tmpdir(),'bili-whale-test-'))
+  t.after(()=>fs.rmSync(home,{recursive:true,force:true}))
+  const dsh=path.join(home,'portable/profile')
+  fs.mkdirSync(dsh,{recursive:true});fs.mkdirSync(path.join(home,'.bili-ai'))
+  fs.writeFileSync(path.join(dsh,'bili-whale.config.json'),JSON.stringify({owner:{mid:'222',name:'Owner'},listen:{comment:false,dm:false,live:false},...cfg}))
+  fs.writeFileSync(path.join(home,'.bili-ai/credentials.json'),JSON.stringify({sessdata:'test-cookie-not-a-real-account',bili_jct:'a'.repeat(32)}))
+  return {...process.env,USERPROFILE:home,HOME:home,DSH_HOME:dsh,DSH_NODE:process.execPath,BILI_WHALE_CONFIG:path.join(dsh,'bili-whale.config.json'),TEST_REQUESTS:path.join(home,'requests.jsonl'),NODE_OPTIONS:'--import='+pathToFileURL(path.join(root,'tests/helpers/mock-fetch.mjs')).href}
+}
+function run(env,file,args=[]) { const r=spawnSync(process.execPath,[path.join(root,file),...args],{env,encoding:'utf8',timeout:15000});assert.ifError(r.error);return r }
+const requests=env=>fs.existsSync(env.TEST_REQUESTS)?fs.readFileSync(env.TEST_REQUESTS,'utf8'):''
+const args=['--msg','BV1234567890','--share','--go','--reason','这是值得分享的视频','--score','15','--rank','1']
+test('notify dry never sends a DM',t=>{const env=sandbox(t,{notify:{type:'dm'}});const r=run(env,'tools/commands/notify.mjs',['preview','--dry']);assert.equal(r.status,0,r.stderr);assert.equal(requests(env),'')})
+test('disabled DM share is rejected before network access',t=>{const env=sandbox(t,{share:{enabled:false}});const r=run(env,'tools/commands/dm.mjs',args);assert.notEqual(r.status,0);assert.equal(requests(env),'')})
+test('unscored DM share is rejected before network access',t=>{const env=sandbox(t);const r=run(env,'tools/commands/dm.mjs',['--msg','BV1234567890','--share','--go']);assert.notEqual(r.status,0);assert.equal(requests(env),'')})
+test('valid DM share works and repeated video is blocked',t=>{const env=sandbox(t);const r=run(env,'tools/commands/dm.mjs',args);assert.equal(r.status,0,r.stderr);assert.equal((requests(env).match(/POST/g)??[]).length,1);const again=run(env,'tools/commands/dm.mjs',args);assert.notEqual(again.status,0);assert.equal((requests(env).match(/POST/g)??[]).length,1)})
+test('ordinary owner DM does not require sharing score',t=>{const env=sandbox(t,{share:{enabled:false}});const r=run(env,'tools/commands/dm.mjs',['--msg','hello','--go']);assert.equal(r.status,0,r.stderr)})
+test('comment uses the same score rule',t=>{const env=sandbox(t);const r=run(env,'tools/commands/comment.mjs',['--oid','1','--bvid','BV1234567890','--message','hello','--share','--auto','--go']);assert.notEqual(r.status,0);assert.equal(requests(env),'')})
+test('custom home, persona, diary and failed approval recovery',t=>{const r=run(sandbox(t),'tests/helpers/plugin.mjs');assert.equal(r.status,0,r.stderr)})
+test('successful approval removes draft',t=>{const env=sandbox(t);env.TEST_SEND_SUCCESS='1';const r=run(env,'tests/helpers/plugin.mjs');assert.equal(r.status,0,r.stderr)})
+test('missing runtime reports scheduler failure',t=>{const env=sandbox(t);delete env.DSH_NODE;env.TEST_NO_NODE='1';const r=run(env,'tests/helpers/plugin.mjs');assert.equal(r.status,0,r.stderr)})
+test('real scheduler: midnight, retries, history, persona and disposal',t=>{const r=run(sandbox(t),'tests/helpers/scheduler.mjs');assert.equal(r.status,0,r.stderr)})
+test('CLI plan is stable between processes',t=>{const env=sandbox(t);const a=run(env,'tools/commands/whale-night.mjs',['plan']);const b=run(env,'tools/commands/whale-night.mjs',['plan']);assert.equal(a.status,0,a.stderr);assert.deepEqual(JSON.parse(a.stdout),JSON.parse(b.stdout))})

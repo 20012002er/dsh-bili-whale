@@ -12,9 +12,8 @@
 import fs from 'node:fs'
 import path from 'node:path'
 
-const HOME = process.env.USERPROFILE || process.env.HOME || '.'
-
-export const CRED_PATH = path.join(HOME, '.bili-ai', 'credentials.json')
+import { credentialsPath } from './paths.mjs'
+export const CRED_PATH = credentialsPath
 
 /** 读凭据：统一 trim，容忍 BOM / 首尾空白。 */
 export function loadCred() {

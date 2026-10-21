@@ -132,6 +132,7 @@ if (cmd === 'check') {
   // 它**不看白名单**（因为不是去跟陌生人互动，是给主人递东西），但三条硬限制：
   //   ① 每天合计 ≤ shareDaily（跨多次醒来共享）② 同一视频 7 天内只能一次 ③ 正文必须 @ 主人
   if (share) {
+    if (config().share?.enabled === false) { console.error("分享已关闭"); process.exit(2) }
     const sil = silence()
     const effCap = Math.min(shareDaily, sil.cap)
     if (sil.penalty > 0) console.log(`  [沉默衰减] ${sil.days} 天没有任何表态 → 分享上限 ${shareDaily} → ${effCap}${effCap === 0 ? '（已停止分享；日记照常）' : ''}`)
