@@ -1,4 +1,4 @@
-# 本地更新修复版 0.4.1-local.1
+# dsh-bili-whale 0.4.2
 
 基于上游 0.4.1 / 680bac8，新增及修复说明、GitHub 全部 issue/PR 核对、升级步骤见 [LOCAL-UPDATE.md](LOCAL-UPDATE.md)。本地回归 39 个用例通过。下方保留上游说明；新增目录、间隔和 @ 总结选项以本地更新说明为准。
 
