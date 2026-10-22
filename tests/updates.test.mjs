@@ -99,3 +99,17 @@ test('wake prompt follows night.maxVideos instead of a hard-coded 5',()=>{
   // 不传就按 5（向后兼容 ✓）
   assert.match(wakePrompt(st,''),/≤5 条/)
 })
+
+test('wake prompt states the current share.via and only that route',()=>{
+  const st={date:'2026-10-22',n:12}
+  const viaComment=wakePrompt(st,'',5,'comment')
+  assert.match(viaComment,/share.via = comment/)
+  assert.match(viaComment,/走【评论区 @】/)
+  assert.match(viaComment,/不要走私信/)
+  const viaDm=wakePrompt(st,'',5,'dm')
+  assert.match(viaDm,/share.via = dm/)
+  assert.match(viaDm,/走【私信】/)
+  assert.match(viaDm,/不要在评论区 @ 他/)
+  assert.match(viaDm,/必须带 --share/)
+  assert.doesNotMatch(viaComment,/必须带 --share/)
+})
