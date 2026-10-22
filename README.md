@@ -1,4 +1,4 @@
-# dsh-bili-whale 0.4.3
+# dsh-bili-whale 0.4.5
 
 每一版的改动见 [CHANGELOG.md](CHANGELOG.md)；GitHub 上全部 issue/PR 的逐条核对见 [LOCAL-UPDATE.md](LOCAL-UPDATE.md)。本地回归 39 个用例通过。下方保留上游说明；新增目录、间隔和 @ 总结选项以本地更新说明为准。
 
