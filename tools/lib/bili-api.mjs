@@ -29,6 +29,13 @@ const HOME = process.env.USERPROFILE || process.env.HOME || '.'
 const CACHE_FILE = path.join(HOME, '.bili-ai', 'api-cache.json')
 const BAN_FILE = path.join(HOME, '.bili-ai', 'api-ban.json')
 const CACHE_TTL_MS = 24 * 3600 * 1000
+// 2026-10-22：请求日志 —— 回答「这一趟到底打了几次网络、命中几次缓存」
+//   主人问「她那次只查了一次缓存吗」✗ 当时只有「缓存写了几条」这个间接指标 ✗
+//   日志按行追加：时间 命中/未命中 路径（不含 cookie、不含响应正文）
+const REQ_LOG = path.join(HOME, '.bili-ai', 'api-requests.log')
+const logReq = (hit, p) => {
+  try { fs.appendFileSync(REQ_LOG, `${new Date().toISOString()} ${hit ? 'HIT ' : 'NET '} ${p}\n`) } catch {}
+}
 
 // 只缓存「静态一点的元信息」✗ 动态内容（评论/收件箱/动态流/点赞）绝不能缓存 ✓
 const CACHEABLE = [
@@ -111,7 +118,7 @@ export async function apiGet(input, headers = {}, opts = {}) {
   if (!noCache && canCache && !noCacheEnv()) {
     const hit = readJson(CACHE_FILE, {})[key]
     const useTtl = isNav(url.href) ? NAV_TTL_MS : ttl
-    if (hit && Date.now() - Number(hit.at ?? 0) < useTtl) return { ...hit.data, _cached: true }
+    if (hit && Date.now() - Number(hit.at ?? 0) < useTtl) { logReq(true, url.pathname); return { ...hit.data, _cached: true } }
   }
 
   try {
@@ -131,6 +138,7 @@ export async function apiGet(input, headers = {}, opts = {}) {
     if (gap < 300) await sleep(300 - gap)
     lastRequestAt = Date.now()
 
+    logReq(false, url.pathname)
     const response = await fetch(url.href, { headers, signal: AbortSignal.timeout(30000) })
 
     // HTTP 412/429：平台级风控 → 熔断（默认 5 分钟，指数退避封顶 30 分钟）
