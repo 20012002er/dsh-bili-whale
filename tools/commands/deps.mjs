@@ -8,6 +8,7 @@
 import fs from 'node:fs'
 import path from 'node:path'
 import { ffmpegInfo } from '../lib/ffmpeg.mjs'
+import { apiState } from '../lib/bili-api.mjs'
 
 const HOME = process.env.USERPROFILE || process.env.HOME || '.'
 const cred = path.join(HOME, '.bili-ai', 'credentials.json')
@@ -82,6 +83,19 @@ try {
 }
 
 items.push({ name: '数据目录可写', ok: dirOk, detail: path.join(HOME, '.bili-ai'), fix: '检查该目录权限' })
+// 2026-10-22：把「接口缓存 / 熔断」现状也列出来 ——
+//   被 412 限流时最想知道的就是「还要等多久」和「缓存里还有多少能撑」
+try {
+  const st = apiState()
+  items.push({
+    name: 'B站 限流',
+    ok: !st.banned,
+    detail: st.banned
+      ? `熔断中，约 ${st.banMinutesLeft} 分钟后恢复（原因 ${st.banWhy ?? '-'}）；缓存里 ${st.cacheEntries} 条可撑`
+      : `正常 · 元信息缓存 ${st.cacheEntries} 条`,
+    fix: '等它自己恢复（5→10→20→30 分钟退避）；期间只读缓存，别手动狂点',
+  })
+} catch {}
 
 const bad = items.filter((i) => !i.ok)
 

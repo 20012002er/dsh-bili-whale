@@ -41,7 +41,7 @@ test('issue 19: DM status explains both directions and unknown reverse state',t=
 
 const images={img_url:'https://i.test/7cd084941338484aae1ad9425b84077c.png',sub_url:'https://i.test/4932caff0ff746eab6f01bf08b70ac45.png'}
 test('issue 18: affected metadata CLIs fail cleanly on HTTP 412 without writes',t=>{
- const s=sandbox(t);s.env.NODE_OPTIONS='--import='+pathToFileURL(path.join(root,'tests/helpers/api-fetch.mjs')).href
+ const s=sandbox(t);s.env.NODE_OPTIONS='--import='+pathToFileURL(path.join(root,'tests/helpers/api-fetch.mjs')).href;s.env.BILI_NO_CACHE='1'
  for(const [cmd,args] of [['comments',['BV1234567890','--json']],['subtitles',['BV1234567890']],['debrief',['BV1234567890','--no-frames']],['video-content',['BV1234567890']],['fav',['BV1234567890','--reason','这个视频值得收藏','--dry']]]) {
   const r=s.run(cmd,args);assert.equal(r.status,3,cmd+': '+r.stdout+r.stderr);assert.match(r.stdout+r.stderr,/HTTP 412/);assert.doesNotMatch(r.stdout+r.stderr,/SyntaxError|private diagnostic|at async/)
  }
@@ -52,6 +52,8 @@ test('issue 18: WBI signing matches the known canonical vector',()=>{
  assert.throws(()=>signWbi({},{}),/密钥/)
 })
 test('issue 18: metadata and playback use signed endpoints; errors never expose HTML',async t=>{
+ process.env.BILI_NO_CACHE='1'
+ t.after(()=>{delete process.env.BILI_NO_CACHE})
  const calls=[];t.mock.method(globalThis,'fetch',async input=>{const u=new URL(input);calls.push(u);if(u.pathname.endsWith('/nav'))return new Response(JSON.stringify({code:0,data:{wbi_img:images}}));assert.match(u.pathname,/\/wbi\//);assert.match(u.searchParams.get('w_rid'),/^[a-f0-9]{32}$/);return new Response(JSON.stringify({code:0,data:{aid:42}}))})
  for(const endpoint of ['/x/web-interface/view?bvid=BV1234567890','/x/player/playurl?bvid=BV1234567890&cid=1'])assert.equal((await apiGet('https://api.bilibili.com'+endpoint)).data.aid,42)
  assert.equal(calls.length,4)
