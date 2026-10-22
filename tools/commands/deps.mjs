@@ -97,6 +97,54 @@ try {
   })
 } catch {}
 
+// 2026-10-22 加：把「生物钟」也报出来 —— 主人很早以前提过，一直没做 ✗
+//   以前 deps 只看 cookie / ffmpeg / node ✗ → 调度器死了她看不出来 ✗
+//   → 「体检全绿，但今晚根本不会醒」是最难发现的失败 ✓
+//   ⚠️ deps.mjs 是独立进程，读不到插件内存里的 SCHED_STATUS
+//   → 只能从【配置 + 状态文件】推断 ✓
+try {
+  const cfgPath = process.env.BILI_WHALE_CONFIG || path.join(HOME, '.dsh', 'bili-whale.config.json')
+  const statePath = path.join(HOME, '.dsh', 'whale-night.json')
+  const cfg = JSON.parse(fs.readFileSync(cfgPath, 'utf8'))
+  const night = cfg.night ?? {}
+  const windows = Array.isArray(night.windows) ? night.windows : []
+  const maxW = Number(night.maxWakesPerDay ?? 1) || 1
+  if (!windows.length) {
+    items.push({ name: '生物钟', ok: false, detail: '配置里没有任何作息窗口 → 永远不醒 ✗', fix: '设置页「作息」加一个窗口（例如 20:00–24:00，醒 1 次）' })
+  } else {
+    let st = null
+    try { st = JSON.parse(fs.readFileSync(statePath, 'utf8')) } catch {}
+    const now = Date.now()
+    const woke = Number(st?.wakes ?? 0)
+    const atMs = Number(st?.atMs ?? 0)
+    const action = String(st?.action ?? '')
+    let ok = true, detail = '', fix = ''
+    if (!st) {
+      ok = false
+      detail = '还没有计划文件（调度器可能刚起、或根本没起来）✗'
+      fix = '等一分钟再看；还是这样就看设置页「依赖体检」里调度器那行的原因'
+    } else if (action === 'wake' && atMs) {
+      const mins = Math.round((atMs - now) / 60000)
+      if (atMs < now - 120000) {
+        ok = false
+        detail = `计划 ${st.atText ?? ''} 已经过去 ${Math.abs(mins)} 分钟还没执行 → 调度器可能没在跑 ✗`
+        fix = '重启 DSH；起来后看设置页「依赖体检」里调度器那行'
+      } else {
+        detail = `每 60 秒 tick · 下次 ${st.atText ?? new Date(atMs).toLocaleString('zh-CN')}${mins > 0 ? `（${mins} 分钟后）` : '（马上）'} · 今日已醒 ${woke}/${maxW}`
+      }
+    } else if (action === 'done') {
+      detail = `今日已醒 ${woke}/${maxW} · 今晚不会再醒（${st.reason ?? '窗口已用完'}）`
+    } else if (action === 'skip') {
+      detail = `这趟是「不看」· 今日已醒 ${woke}/${maxW}（${st.window ?? ''}）`
+    } else {
+      detail = `状态 ${action || '(空)'} · 今日已醒 ${woke}/${maxW}`
+    }
+    items.push({ name: '生物钟', ok, detail, fix })
+  }
+} catch (e) {
+  items.push({ name: '生物钟', ok: false, detail: '检查失败：' + String(e?.message ?? e).slice(0, 80), fix: '看设置页「养鱼」里生物钟那行；或 node bili.mjs night plan' })
+}
+
 const bad = items.filter((i) => !i.ok)
 
 if (asJson) {
