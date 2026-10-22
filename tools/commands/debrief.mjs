@@ -213,7 +213,11 @@ if (!opt['no-frames']) {
   try {
     // ⚠️ 必须用 fileURLToPath：用 URL.pathname 会把路径里的空格变成 %20（实测踩过）
     const watch = path.join(path.dirname(fileURLToPath(import.meta.url)), 'bili-watch.mjs')
-    const out = execFileSync(NODE_EXE, [watch, bvid, GRID], { encoding: 'utf8', maxBuffer: 32 * 1024 * 1024 })
+    // 2026-10-22 修（主人实测撞上）：25 分钟的片子抽帧 ETIMEDOUT ✗
+    //   capture 的默认超时是 120s，而「场景检测空跑 + 下载 + 抽帧」按时长线性长 ✗
+    //   改成按时长算：120s + 每秒视频 1.5s（25 分钟 → 约 40 分钟余量 ✓）
+    const framesTimeout = 120_000 + Math.round((Number(dur ?? 0) || 0) * 1.5) * 1000
+    const out = execFileSync(NODE_EXE, [watch, bvid, GRID], { encoding: 'utf8', maxBuffer: 32 * 1024 * 1024, timeout: framesTimeout })
     for (const line of out.split('\n')) if (/^(SHEET|SUBS|实际画质|取帧方式)/.test(line)) console.log(line)
     sheet = (out.split('\n').find((l) => l.startsWith('SHEET:')) || '').slice(6).trim() || null
   } catch (e) { console.log(`（抽帧失败：${String(e.message).slice(0, 200)}）`) }

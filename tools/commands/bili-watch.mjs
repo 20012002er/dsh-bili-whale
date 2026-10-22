@@ -63,7 +63,7 @@ function sceneTimes(file, th) {
   try {
     const out = execFileSync(FFMPEG, ['-hide_banner', '-i', file, '-vf',
       `select='gt(scene,${th})',metadata=print:file=-`, '-an', '-f', 'null', '-'],
-      { encoding: 'utf8', stdio: ['ignore', 'pipe', 'ignore'], maxBuffer: 16 * 1024 * 1024 })
+      { encoding: 'utf8', stdio: ['ignore', 'pipe', 'ignore'], maxBuffer: 16 * 1024 * 1024, timeout: 600_000 })
     const ts = [...out.matchAll(/pts_time:([0-9.]+)/g)].map((m) => Number(m[1]))
     return [...new Set(ts)].filter((t) => t > 0.2)
   } catch { return [] }
