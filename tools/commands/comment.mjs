@@ -131,6 +131,22 @@ if (ONCE) {
     console.log('  [once] 没有 --root/--parent —— 这个开关只对"回复某人"生效，已忽略')
   } else {
     const who = await parentAuthor(oid, root, parent)
+    // 2026-10-22 临时诊断：把她实际传的参数 + 解析结果记下来（定位「同一命令我过她不过」）
+    try {
+      const fs2 = await import('node:fs')
+      const os2 = await import('node:os')
+      const p2 = await import('node:path')
+      const line = [
+        new Date().toISOString(),
+        'oid=' + oid,
+        'root=' + root,
+        'parent=' + parent,
+        'type=' + type,
+        '→ who=' + JSON.stringify(who),
+        'script=' + import.meta.url.split('/').slice(-2).join('/'),
+      ].join(' ') + '\n'
+      fs2.appendFileSync(p2.join(os2.homedir(), '.bili-ai', 'once-debug.log'), line)
+    } catch {}
     // 2026-10-22 补回（这条在 v0.4.x 某次重写时丢了 ✗）：
     //   这个开关是给【陌生人】防拉锯的 ✗ 对主人生效会把主人锁 30 天 ✗
     const ownerMid = String(config().owner?.mid ?? '')

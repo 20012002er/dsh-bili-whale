@@ -124,7 +124,7 @@ dsh plugin --profile desktop add "link:C:\path\to\dsh-bili-whale"
 ## 🚦 启动测试（装完**立刻**跑这一条）
 
 ```bash
-node ~/.dsh/plugins/dsh-bili-whale/tools/bili.mjs selftest
+node <插件目录>/tools/bili.mjs selftest
 ```
 
 （Windows 路径换成 `%USERPROFILE%\.dsh\plugins\dsh-bili-whale\tools\bili.mjs`）
