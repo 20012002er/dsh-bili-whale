@@ -7,6 +7,7 @@
 // 为什么这么做（2026-10-14 主人定的方向）：主人要的是"有日子的鱼"，
 // 所以"看什么"不该由别人喂，而该由她自己的偏好决定 —— 偏好写在日记里，这个脚本只负责照它去捞。
 import fs from 'node:fs'
+import { apiGet } from '../lib/bili-api.mjs'
 import path from 'node:path'
 import { config } from '../lib/config.mjs'
 import crypto from 'node:crypto'
@@ -47,7 +48,7 @@ const UA = 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML,
 const H = { 'user-agent': UA, referer: 'https://search.bilibili.com/', cookie: `SESSDATA=${cred.sessdata}; bili_jct=${cred.bili_jct}; buvid3=${cred.buvid3}` }
 const MIXIN_TAB = [46,47,18,2,53,8,23,32,15,50,10,31,58,3,45,35,27,43,5,49,33,9,42,19,29,28,14,39,12,38,41,13,37,48,7,16,24,55,40,61,26,17,0,1,60,51,30,4,22,25,54,21,56,59,6,63,57,62,11,36,20,34,44,52]
 const keyOf = (u) => u.slice(u.lastIndexOf('/') + 1, u.lastIndexOf('.'))
-const nav = await (await fetch('https://api.bilibili.com/x/web-interface/nav', { headers: H })).json()
+const nav = await apiGet('https://api.bilibili.com/x/web-interface/nav', H)
 const mixin = MIXIN_TAB.map((i) => (keyOf(nav.data?.wbi_img?.img_url ?? '') + keyOf(nav.data?.wbi_img?.sub_url ?? ''))[i]).join('').slice(0, 32)
 const wbi = (p) => {
   const wts = Math.round(Date.now() / 1000)
@@ -60,7 +61,7 @@ const pool = []
 for (const kw of prefs.slice(0, 6)) {
   for (const order of ['click', 'pubdate']) {
     try {
-      const j = await (await fetch(`https://api.bilibili.com/x/web-interface/wbi/search/type?${wbi({ search_type: 'video', keyword: kw, order, page: 1 })}`, { headers: H })).json()
+      const j = await apiGet(`https://api.bilibili.com/x/web-interface/wbi/search/type?${wbi({ search_type: 'video', keyword: kw, order, page: 1 })}`, H)
       for (const it of (j?.data?.result ?? []).slice(0, POOL / prefs.length + 4)) {
         pool.push({
           bv: it.bvid, t: String(it.title).replace(/<[^>]+>/g, ''), d: secs(it.duration),
@@ -77,14 +78,14 @@ for (const kw of prefs.slice(0, 6)) {
 const SOURCE_HOT = String((process.argv.find((a) => a.startsWith('--source=')) ?? '').split('=')[1] ?? '')
   || (process.argv.includes('--source') ? String(process.argv[process.argv.indexOf('--source') + 1] ?? 'all') : 'all')
 async function fetchPopular() {
-  const j = await (await fetch('https://api.bilibili.com/x/web-interface/popular?pn=1&ps=20', { headers: H })).json()
+  const j = await apiGet('https://api.bilibili.com/x/web-interface/popular?pn=1&ps=20', H)
   for (const it of (j?.data?.list ?? [])) {
     pool.push({ bv: it.bvid, t: String(it.title ?? '').replace(/<[^>]+>/g, ''), d: Number(it.duration ?? 0),
       dm: Number(it.stat?.danmaku ?? 0), play: Number(it.stat?.view ?? 0), up: it.owner?.name ?? '', kw: '热门' })
   }
 }
 async function fetchRank() {
-  const j = await (await fetch('https://api.bilibili.com/x/web-interface/ranking/v2?rid=0&type=all', { headers: H })).json()
+  const j = await apiGet('https://api.bilibili.com/x/web-interface/ranking/v2?rid=0&type=all', H)
   for (const it of (j?.data?.list ?? []).slice(0, 20)) {
     pool.push({ bv: it.bvid, t: String(it.title ?? '').replace(/<[^>]+>/g, ''), d: Number(it.duration ?? 0),
       dm: Number(it.stat?.danmaku ?? 0), play: Number(it.stat?.view ?? 0), up: it.owner?.name ?? '', kw: '排行' })
@@ -92,7 +93,7 @@ async function fetchRank() {
 }
 // 关注的人发了什么（2026-10-18 加）：真人才会"刷关注"——只搜关键词等于只刷"搜索"，不像人
 async function fetchFollowing() {
-  const j = await (await fetch('https://api.bilibili.com/x/polymer/web-dynamic/v1/feed/all?type=video&page=1', { headers: H })).json()
+  const j = await apiGet('https://api.bilibili.com/x/polymer/web-dynamic/v1/feed/all?type=video&page=1', H)
   if (j?.code !== 0) throw new Error(`code=${j?.code} ${j?.message ?? ''}`)
   for (const it of (j?.data?.items ?? [])) {
     const a = it?.modules?.module_author
