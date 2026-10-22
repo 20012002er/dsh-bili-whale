@@ -34,8 +34,17 @@ const CACHE_TTL_MS = 24 * 3600 * 1000
 //   日志按行追加：时间 命中/未命中 路径（不含 cookie、不含响应正文）
 const REQ_LOG = path.join(HOME, '.bili-ai', 'api-requests.log')
 const logReq = (hit, p) => {
-  try { fs.appendFileSync(REQ_LOG, `${new Date().toISOString()} ${hit ? 'HIT ' : 'NET '} ${p}\n`) } catch {}
+  try {
+    fs.appendFileSync(REQ_LOG, `${new Date().toISOString()} ${hit ? 'HIT ' : 'NET '} ${p}\n`)
+    // 2026-10-22 自查：日志会无限长 ✗ 每 200 条检查一次，超过 2000 行就只留后半段 ✓
+    reqLogWrites += 1
+    if (reqLogWrites % 200 === 0) {
+      const txt = fs.readFileSync(REQ_LOG, 'utf8').split('\n')
+      if (txt.length > 2000) fs.writeFileSync(REQ_LOG, txt.slice(-1000).join('\n'))
+    }
+  } catch {}
 }
+let reqLogWrites = 0
 
 // 只缓存「静态一点的元信息」✗ 动态内容（评论/收件箱/动态流/点赞）绝不能缓存 ✓
 const CACHEABLE = [
@@ -48,9 +57,27 @@ const CACHEABLE = [
 // nav 只缓存 10 分钟（wbi 密钥会轮换），别放进 CACHE_TTL 那套 ✓
 const NAV_TTL_MS = 10 * 60 * 1000
 // 风控码：撞到就熔断
-const BAN_CODES = new Set([-412, -352, -799, -509, -10403])
+// 2026-10-22 自查：-412 不能进熔断列表 ✗
+//   playurl 对「大会员专属 / 地区限制」也返回 -412 ✓ 那是内容限制，不是限流 ✓
+//   一撞就熔断整机 5~30 分钟 → 误伤 ✓
+//   真限流走 HTTP 412/429 那条路（下面单独处理 ✓）
+const BAN_CODES = new Set([-352, -799, -509, -10403])
 
+// 2026-10-22 自查：每次 apiGet 都重读缓存文件（最多 400 条）✗ 一次 debrief 要读好几次 ✓
+//   加一层进程内 memo：按 mtime 失效 ✓ 同一个进程里只解析一次 ✓
+const jsonMemo = new Map()
 function readJson(file, fallback) {
+  try {
+    const st = fs.statSync(file)
+    const key = file
+    const hit = jsonMemo.get(key)
+    if (hit && hit.mtime === st.mtimeMs) return hit.value
+    const value = JSON.parse(fs.readFileSync(file, 'utf8'))
+    jsonMemo.set(key, { mtime: st.mtimeMs, value })
+    return value
+  } catch { return fallback }
+}
+function readJsonNoMemo(file, fallback) {
   try { return JSON.parse(fs.readFileSync(file, 'utf8')) } catch { return fallback }
 }
 function writeJson(file, value) {
