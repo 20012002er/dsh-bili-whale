@@ -89,8 +89,45 @@ const refererArg = args.get('referer') ? String(args.get('referer')) : ''
 const dry = args.get('dry') === true || args.has('dry')
 const go = args.get('go') === true || args.has('go')
 
+// 2026-10-22：--check 只读预检 —— 回答「这条回复到底能不能发」✗ 不发文、不占额度
+//   动机：她撞过几次 fail-closed 之后就开始凭记忆说「又被拒了」✗
+//        给她一条零副作用的检查命令 ✓ 让她自己看到「现在是通的」✓
+const CHECK = args.get('check') === true || args.has('check')
+if (CHECK) {
+  if (!oid) { console.error('--check 需要 --oid'); process.exit(2) }
+  const who = (root && parent) ? await parentAuthor(oid, root, parent) : null
+  const ownerMid = String(config().owner?.mid ?? '')
+  const lines = [
+    `oid=${oid}  root=${root ?? '(未给)'}  parent=${parent ?? '(未给)'}  type=${type}`,
+  ]
+  if (!root || !parent) {
+    lines.push('\n这是【顶层评论】（不带 --root/--parent）→ 判重不生效，可以直接发 ✓')
+    console.log(lines.join('\n')); process.exit(0)
+  }
+  if (!who?.mid) {
+    lines.push('\n✗ 查不到被回复者的 uid → 发的时候会被 fail-closed 挡下来 ✗')
+    lines.push('  查不到的原因通常是：--root 传了 0 / --parent 不是楼中楼也不是顶层评论 / 该评论已删')
+    lines.push('  修：root 传 0 或空时本命令会自动把它兜成 parent ✓ 再试一次')
+    console.log(lines.join('\n')); process.exit(2)
+  }
+  lines.push(`\n被回复者：${who.name || '(无名)'}（mid ${who.mid}）`)
+  if (ownerMid && String(who.mid) === ownerMid) {
+    lines.push('✓ 是主人 → 「同一个人只回一条」不适用 ✓ 能发 ✓')
+    console.log(lines.join('\n')); process.exit(0)
+  }
+  const led = loadReplied()
+  const hist = (led.byUid?.[who.mid] ?? []).filter((x) => Date.now() - new Date(x.at).getTime() < ONCE_DAYS * 86_400_000)
+  if (hist.length) {
+    lines.push(`✗ ${ONCE_DAYS} 天内已经回过 TA（${hist[0].at} · ${hist[0].target}）→ 带 --once-per-person 会被拒 ✗`)
+    lines.push('  （是主人就不受这条限制 ✓；否则换个人或等过了 30 天）')
+    console.log(lines.join('\n')); process.exit(2)
+  }
+  lines.push('✓ 30 天内没回过 TA → 能发 ✓')
+  console.log(lines.join('\n')); process.exit(0)
+}
+
 if (!oid || (!bvid && !refererArg) || !message) {
-  console.error('usage: --oid <aid|comment_id_str> [--bvid <BV...> | --referer <url>] --message "<text>" [--type 1|11] [--root <rpid> --parent <rpid>] [--dry | --go]')
+  console.error('usage: --oid <aid|comment_id_str> [--bvid <BV...> | --referer <url>] --message "<text>" [--type 1|11] [--root <rpid> --parent <rpid>] [--dry | --go] [--check]')
   process.exit(2)
 }
 if (dry && go) { console.error('pick either --dry or --go, not both'); process.exit(2) }
