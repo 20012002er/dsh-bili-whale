@@ -70,8 +70,16 @@ for (let i = 2; i < process.argv.length; i += 1) {
 const oid = args.get('oid')
 const bvid = args.get('bvid')
 let message = args.get('message')
-const root = args.get('root')     // 线程根评论 rpid（二级回复用）
-const parent = args.get('parent') // 要回复的那条评论 rpid
+let root = args.get('root')     // 线程根评论 rpid（二级回复用）
+let parent = args.get('parent') // 要回复的那条评论 rpid
+
+// 2026-10-22 修（她连着三次撞上）：
+//   B站 收件箱里【顶层评论】的 root_id 是 0 ✗
+//   而 x/v2/reply/reply?root=0 什么都查不到 → parentAuthor 返回 null
+//   → once-per-person 的 fail-closed 把回复挡死 ✗（她报「没查到被回复者的 uid」）
+//   root=0 的真实含义就是「parent 自己就是顶层评论」✓ 所以这里兜一下 ✓
+if (parent && (!root || String(root) === '0')) root = String(parent)
+
 // type=1 视频（默认）；type=11 动态/图文。⚠️ 动态的 oid 必须用
 // polymer/web-dynamic/v1/detail 给的 basic.comment_id_str，**不是** dyn_id 本身
 // （拿 dyn_id 当 oid 一律 -404，2026-10-13 实测踩过）。
