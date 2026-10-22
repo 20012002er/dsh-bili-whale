@@ -207,11 +207,6 @@ console.log('  cookie : SESSDATA=***; bili_jct=***; buvid3=***   (已脱敏)')
 console.log('  body   : ' + body.replace(encodeURIComponent(String(cred.bili_jct)), '***csrf***'))
 console.log(`  正文长度 ${message.length} 字符（上限 1000）；oid=${oid}；emoji/表情需转义符，本脚本只发纯文本`)
 
-if (dry) {
-  console.log('\n[dry] 未发送。确认文案与账号后，把 --dry 换成 --go 再跑一次。')
-  process.exit(0)
-}
-
 // 闸门：自主发言（--auto）或分享型（--share）才拦；主人授权的发言只显示额度
 {
   const target = bvid ? `BV:${bvid}` : `oid:${oid}`
@@ -221,6 +216,11 @@ if (dry) {
     console.error('  → 拒绝发送。这是硬约束第 4 条的代码实现，不要绕过（要发请主人当场授权，或改白名单/额度）。')
     process.exit(2)
   }
+}
+
+if (dry) {
+  console.log('\n[dry] 预检通过，未发送。把 --dry 换成 --go 时仍会重新检查额度。')
+  process.exit(0)
 }
 
 // 判重（--once-per-person）已在入口处检查，这里直接发

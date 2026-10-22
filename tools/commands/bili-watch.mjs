@@ -1,3 +1,4 @@
+import { apiGet } from '../lib/bili-api.mjs'
 // 让 agent 真"看"视频：取直链 → 下载 → ffmpeg 抽帧拼成一张九宫格 → 输出图片路径（再交给 read_image 看）
 //
 // 用法: node bili-watch.mjs <BV号> [列x行，默认 3x3] [outDir]
@@ -26,7 +27,7 @@ const cred = JSON.parse(fs.readFileSync(path.join((process.env.USERPROFILE || pr
 const UA = 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36'
 const H = { 'user-agent': UA, referer: 'https://www.bilibili.com/', cookie: `SESSDATA=${cred.sessdata}; bili_jct=${cred.bili_jct}; buvid3=${cred.buvid3}` }
 
-const view = await (await fetch(`https://api.bilibili.com/x/web-interface/view?bvid=${bvid}`, { headers: H })).json()
+const view = await apiGet(`https://api.bilibili.com/x/web-interface/view?bvid=${bvid}`, H)
 if (view.code !== 0) { console.error(`view 失败 code=${view.code} ${view.message}`); process.exit(3) }
 const { cid, title, duration, owner } = { ...view.data, owner: view.data.owner?.name }
 console.log(`标题: ${title}`)
@@ -34,9 +35,9 @@ console.log(`UP: ${owner}   时长: ${duration}s   cid=${cid}`)
 
 // 画质实测（2026-10-14）：html5 + qn=32 会被压到 360p（返回 quality=16，界面小字全糊）；
 // 改 platform=pc + qn=80 可拿到 720p（返回 quality=64），依旧是普通 mp4 直链，不必碰 dash。
-const p = await (await fetch(`https://api.bilibili.com/x/player/playurl?bvid=${bvid}&cid=${cid}&qn=80&fnval=1&platform=pc&high_quality=1`, { headers: H })).json()
+const p = await apiGet(`https://api.bilibili.com/x/player/playurl?bvid=${bvid}&cid=${cid}&qn=80&fnval=1&platform=pc&high_quality=1`, H)
 const url = p.data?.durl?.[0]?.url
-if (!url) { console.error(`没拿到直链（code=${p.code}）——有些视频要登录或只有 dash 流`); process.exit(4) }
+if (!url) { console.error(`没拿到直链（code=${p.code} ${p.message ?? ""}）——有些视频要登录或只有 dash 流`); process.exit(4) }
 const QN = { 16: '360P', 32: '480P', 64: '720P', 80: '1080P' }
 console.log(`实际画质: ${QN[p.data.quality] ?? p.data.quality}`)
 

@@ -45,7 +45,7 @@ if (cmd === 'log') {
 if (cmd === 'tail') {
   const n = Number(opt.n ?? 20)
   let lines = []
-  try { lines = fs.readFileSync(LOG, 'utf8').trim().split('\n').filter(Boolean) } catch {}
+  try { lines = fs.readFileSync(LOG, 'utf8').trim().split(/\r?\n/).filter(Boolean) } catch {}
   if (!lines.length) { console.log('（还没有事件记录）'); process.exit(0) }
   for (const l of lines.slice(-n)) {
     try { const e = JSON.parse(l); console.log(`  ${String(e.at).slice(0, 16).replace('T', ' ')}  ${e.kind}  ${e.target ?? ''}  ${e.note ?? ''}`) }
@@ -66,7 +66,7 @@ if (cmd === 'show' || !cmd) {
   if (text) {
     const sections = {}
     let cur = null
-    for (const line of text.split('\n')) {
+    for (const line of text.split(/\r?\n/)) {
       const h = line.match(/^##\s+(.+)$/)
       if (h) { cur = h[1].trim(); sections[cur] = []; continue }
       if (cur) sections[cur].push(line)
@@ -108,7 +108,7 @@ if (cmd === 'show' || !cmd) {
   // ③ 事件流
   console.log('\n【最近事件】')
   let lines = []
-  try { lines = fs.readFileSync(LOG, 'utf8').trim().split('\n').filter(Boolean) } catch {}
+  try { lines = fs.readFileSync(LOG, 'utf8').trim().split(/\r?\n/).filter(Boolean) } catch {}
   if (!lines.length) console.log('  （还没有事件记录 —— `diary log` 会往这里写）')
   for (const l of lines.slice(-6)) {
     try { const e = JSON.parse(l); console.log(`  · ${String(e.at).slice(5, 16).replace('T', ' ')}  ${e.kind}  ${e.target ?? ''}  ${e.note ?? ''}`) } catch {}

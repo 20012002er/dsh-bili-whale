@@ -116,7 +116,21 @@ async function me() {
 async function relation(toMid) {
   const j = await jget(`https://api.bilibili.com/x/relation?fid=${toMid}`)
   if (j.code !== 0) return { ok: false, attribute: -1, why: `关系接口 code=${j.code}` }
-  return { ok: true, attribute: Number(j.data?.attribute ?? -1) }
+  return { ok: true, attribute: Number(j.data?.attribute ?? -1), beAttribute: j.data?.be_relation?.attribute == null ? null : Number(j.data.be_relation.attribute) }
+}
+
+function relationLines(rel, meInfo) {
+  if (!rel.ok) return [rel.why + '，无法确认关注方向，请稍后重试']
+  const outgoing = [2, 6].includes(rel.attribute)
+  const incoming = rel.attribute === 6 || (rel.beAttribute != null ? [2, 6].includes(rel.beAttribute) : null)
+  const lines = [
+    `她 → 主人：${outgoing ? '已关注' : '未关注'}`,
+    `主人 → 她：${incoming === null ? '未知（请在主人账号确认）' : incoming ? '已关注' : '未关注'}`,
+  ]
+  if (!outgoing) lines.push(`请登录她的账号，在 https://space.bilibili.com/${ONLY_TO} 手动关注主人。`)
+  if (incoming !== true) lines.push(`请登录主人账号，在 https://space.bilibili.com/${meInfo.mid} 确认并手动关注她。`)
+  if (rel.attribute === 128 || rel.beAttribute === 128) lines.push('存在拉黑关系，请先检查双方黑名单。')
+  return lines
 }
 
 async function send(toMid, text) {
@@ -154,6 +168,8 @@ if (STATUS) {
   console.log(`今天锁定给: ${lockedToday || '（还没发过）'}${lockedToday && lockedToday !== ONLY_TO ? '  ⚠️ 和当前配置不一致 ✗' : ''}`)
   console.log(`今日已发: ${q.date === today() ? Number(q.count ?? 0) : 0} 条（**条数不限** ✓ 只限收信人 ✓）`)
   console.log(`互关状态: attribute=${rel.attribute} ${rel.attribute === 6 ? '（✓ 互关，可以发）' : '（✗ 不是互关，发不出去）'}`)
+  for (const line of relationLines(rel, meInfo)) console.log(line)
+  if (!rel.ok) process.exit(3)
   process.exit(0)
 }
 
@@ -170,7 +186,7 @@ const rel = await relation(ONLY_TO)
 if (!rel.ok) { console.error(`✗ ${rel.why}`); process.exit(3) }
 if (REQUIRE_MUTUAL && rel.attribute !== 6) {
   console.error(`✗ 未互关（attribute=${rel.attribute}）—— 私信通道要求双方互相关注 ✓`)
-  console.error(`   解决：用她这个号去关注 ${OWNER_NAME}（mid ${ONLY_TO}），再跑一次 ✓`)
+  for (const line of relationLines(rel, meInfo)) console.error(line)
   process.exit(4)
 }
 
@@ -186,14 +202,14 @@ console.log(`[dm] ${meInfo.uname} → ${OWNER_NAME}（mid ${ONLY_TO}）`)
 console.log(`  正文 ${MSG.length} 字：${MSG.slice(0, 80)}${MSG.length > 80 ? '…' : ''}`)
 console.log(`  互关 ✓  ·  今天第 ${used + 1} 条（条数不限 ✓ 锁定给 ${OWNER_NAME} ✓）`)
 
-if (DRY) { console.log('  [dry] 未发送 ✓ 确认后把 --dry 换成 --go'); process.exit(0) }
-if (!GO) { console.error('✗ 必须给 --dry 或 --go'); process.exit(2) }
+if (!GO && !DRY) { console.error('✗ 必须给 --dry 或 --go'); process.exit(2) }
 
 // ④ 分享型先过闸（日上限 / 同一视频 7 天一次 / 评分卡 …由 quota 统一管 ✓）
 if (SHARE) {
   const ok = gate({ type: 'dm', target: SHARE_TARGET, auto: true, share: true })
   if (!ok) { console.error('✗ 分享额度不允许（见上面的 [限额闸] 输出）'); process.exit(4) }
 }
+if (DRY) { console.log('  [dry] 预检通过，未发送 ✓ 正式发送时会重新检查额度'); process.exit(0) }
 const r = await send(ONLY_TO, MSG)
 if (r.code === 0) {
   saveQ({ date: today(), count: used + 1, mid: ONLY_TO, at: new Date().toISOString() })

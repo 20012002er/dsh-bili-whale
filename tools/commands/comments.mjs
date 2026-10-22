@@ -1,3 +1,4 @@
+import { apiGet } from '../lib/bili-api.mjs'
 // 拉一条视频的热评 / 最新评论（只读）——「看完的人怎么看」那一路，从 debrief 里拆出来单用。
 //
 // 用法: node comments.mjs <BV> [--ps 20] [--pn 1] [--sort hot|time] [--json] [--max-chars 200]
@@ -44,7 +45,7 @@ try {
 const UA = 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36'
 const cookie = cred.sessdata ? `SESSDATA=${cred.sessdata}; bili_jct=${cred.bili_jct ?? ''}; buvid3=${cred.buvid3 ?? ''}` : ''
 const H = { 'user-agent': UA, referer: `https://www.bilibili.com/video/${bvid}/`, ...(cookie ? { cookie } : {}) }
-const jget = async (u) => (await fetch(u, { headers: H })).json()
+const jget = u => apiGet(u, H)
 
 const view = await jget(`https://api.bilibili.com/x/web-interface/view?bvid=${bvid}`)
 if (view.code !== 0) {

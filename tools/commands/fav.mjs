@@ -1,3 +1,4 @@
+import { apiGet } from '../lib/bili-api.mjs'
 // 收藏（2026-10-20 加，主人定：收藏 ≠ 低配的分享，是"我想留着"）
 //
 // 用法:
@@ -82,8 +83,8 @@ if (opt.list) {
 
 // ── 取她的默认收藏夹 id ────────────────────────────────────
 async function defaultFavId() {
-  const r = await fetch(`https://api.bilibili.com/x/v3/fav/folder/created/list-all?up_mid=${selfMid}`, { headers: H })
-  const j = await r.json()
+  const j = await apiGet(`https://api.bilibili.com/x/v3/fav/folder/created/list-all?up_mid=${selfMid}`, H)
+  if (j.code !== 0) throw new Error(`取收藏夹失败：${j.message ?? j.code}`)
   const list = j.data?.list ?? []
   const pick = list.find((f) => /默认/.test(f.title)) ?? list[0]
   if (!pick) throw new Error('这个号还没有任何收藏夹（B站默认会建一个"默认收藏夹"，没有就得先在网页上收藏一次）')
@@ -92,8 +93,7 @@ async function defaultFavId() {
 
 // ── 取 aid + 标题 ────────────────────────────────────────
 async function videoInfo(bv) {
-  const r = await fetch(`https://api.bilibili.com/x/web-interface/view?bvid=${bv}`, { headers: H })
-  const j = await r.json()
+  const j = await apiGet(`https://api.bilibili.com/x/web-interface/view?bvid=${bv}`, H)
   if (j.code !== 0) throw new Error(`取视频信息失败：code=${j.code} ${j.message ?? ''}`)
   return { aid: j.data.aid, title: String(j.data.title ?? ''), up: String(j.data.owner?.name ?? '') }
 }
@@ -105,7 +105,8 @@ function checkRules({ bv, reason, better, kind }) {
   if (!reason || String(reason).trim().length < 6) return '理由太短（≥6 字）—— 说不清为什么留，就不收 ✗'
   const todayCount = items.filter((x) => new Date(x.at).toLocaleDateString('sv-SE') === today()).length
   if (todayCount >= 3) return `今天已经收了 ${todayCount} 条（上限 3）—— 剩下的明天再说 ✓`
-  const same = items.find((x) => x.bv === bv)
+  const same = items.filter((x) => x.bv === bv)
+    .sort((a, b) => Date.parse(b.at) - Date.parse(a.at))[0]
   if (same) {
     const days = Math.floor((Date.now() - new Date(same.at).getTime()) / DAY)
     if (days < 30) return `这个 ${days} 天前收过了（30 天内不重复）✓`
@@ -142,8 +143,9 @@ if (!cred.sessdata || !cred.bili_jct) {
   console.error('  去设置页粘贴 SESSDATA + bili_jct 并保存（只读的 fav --list 不需要凭据 ✓）')
   process.exit(2)
 }
-const info = await videoInfo(bv)
-const fav = await defaultFavId()
+let info, fav
+try { info = await videoInfo(bv); fav = await defaultFavId() }
+catch (error) { console.error(error.message); process.exit(3) }
 console.log(`[fav] ${bv}  「${info.title.slice(0, 44)}」  @${info.up}`)
 console.log(`  理由：${reason}`)
 console.log(`  类别：${String(opt.kind ?? '') || inferKind(reason)}（可选 --kind 想学|想再看|和我有关|以后要提 覆盖）`)

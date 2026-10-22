@@ -1,3 +1,93 @@
+## v0.4.3（2026-10-22）
+
+三个 issue + 一个 PR。第一个最要紧：**旧端点被判 412 时，六个读命令会直接崩**。
+
+### 修：旧 `view` 端点 412 → 六个命令全崩（#18）
+
+`debrief` / `fav` / `comments` / `subtitles` / `video` / `quota` 的第一步都打旧端点
+`/x/web-interface/view`。对部分网络环境，B站 会直接返回 **HTTP 412 + HTML** ✗
+—— 于是崩在 `JSON.parse`，报错是：
+
+```
+<anonymous_script>:1
+<!DOCTYPE html
+SyntaxError: Unexpected token '<'
+```
+
+完全看不出真实原因 ✗
+
+**修法**：新增中间件 `tools/lib/bili-api.mjs`（42 行），`apiGet()` 自动处理：
+
+```js
+const signedPaths = {
+  '/x/web-interface/view':  '/x/web-interface/wbi/view',
+  '/x/player/playurl':      '/x/player/wbi/playurl',
+}
+```
+
+- 旧路径 → 自动换成 WBI 端点 + 自动签名 ✓
+- 签名密钥缺失 → 返回「WBI 签名不可用」而不是 SyntaxError ✓
+- 任何失败都返回 `{ code, message }`，**不再抛 JSON.parse 异常** ✓
+- 10 个命令都改成走它（不是逐个改调用点）
+
+> 这个 412 不是所有人都会遇到（我们这边两个端点都 200），是按 IP / 账号 / 地区判的。
+> 改成 WBI 之后两条路都能走 ✓
+
+### 修：`dm` 互关要求和「不关注人」红线互相卡死（#19）
+
+新装用户 `attribute=0` 时，**分享和推送两条路都是死的**，
+而提示只说了「去关注主人」—— 单向关注只有 `attribute=2`，拿不到互关的 `6`，
+还得主人也回关，这一步 README 没写 ✗
+
+**修法**：
+- `dm --status` **分方向显示**：
+  ```
+  她 → 主人：未关注
+  主人 → 她：未知（请在主人账号确认）
+  → 请登录她的账号，在 https://space.bilibili.com/<owner> 手动关注主人。
+  → 请登录主人账号，在 https://space.bilibili.com/<self> 确认并手动回关。
+  ```
+- 单独识别拉黑关系（`attribute=128`）
+- README 写明是**双向**，并把「谁在哪一步点哪里」写清楚
+
+**没有加** `follow --target` 命令：那是主人明确的红线，
+「只允许 owner.mid」的边界太容易被改宽，不值得为省一次手动点击承担这个风险。
+
+### 修：`diary show` 对 CRLF 日记解析失败（#20）
+
+Windows 上手写日记（记事本 / Python 文本模式）是 CRLF，
+`split('\n')` 之后每行末尾留着 `\r`，`^##\s+(.+)$` 一个标题都匹配不到 →
+「看过 0 条」✗ 而文件本身完全正常 ✓
+
+**修法**：三处 `split('\n')` → `split(/\r?\n/)`
+（读日记 69 行、读 `whale-log.jsonl` 48 和 111 行）
+
+验证：把现有日记在内存里转 CRLF，两种写法各跑一遍 ——
+`split(/\r?\n/)` → 44 段 ✓ / `split('\n')` → **0 段** ✗
+
+### 收：PR #21 诊断输出转义（by anupamme）
+
+`dynamic-image.mjs` 打印「用 Python 转换图片」的示例命令时，`imagePath` 是直接拼进去的。
+这行日志是**给人复制去跑的** —— 路径里带引号就不该拼出第二条命令。
+按他的写法落地 3 行（对路径做引号/反斜杠转义）。
+
+### 测试
+
+- 39 → **57 个用例全过**
+- 新增覆盖：#18（412 时干净失败且不写）、#19（分方向判定）、#20（CRLF）、
+  以及 A4–A9 / B1–B6 / C1 / C3 / D2–D3 那批（补测清单里的条目）
+- 68 个 JS/MJS 文件全部通过 `node --check`
+- 命令：`node --test tests/planner.test.mjs tests/integration.test.mjs tests/updates.test.mjs tests/supplement.test.mjs`
+
+### 真机验证
+
+- 设置页顺序正常（她是谁 → 你 → 口味 → 作息 → 分享 → 监听 → 日记与推送 → 消息推送 → 工具链 → cookie）
+- 真实唤醒一次：08:35 叫醒 → 写两本日记 → 分享 1 条（18 分）
+- 人设生效：15 个「喵」、0 个「本小姐」、0 个感叹号
+- 她自己在私密日记里认了「前面那几段天亮了/鸟在吵是我编的」
+
+---
+
 ## v0.4.2（2026-10-22）
 
 在 v0.4.1 基础上补上三个真修改，外加两个新功能（默认关闭）。

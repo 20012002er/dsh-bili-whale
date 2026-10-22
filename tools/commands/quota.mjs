@@ -1,3 +1,4 @@
+import { apiGet } from '../lib/bili-api.mjs'
 // 对外发言的「限额闸」—— B 档"限额自主"的代码强制部分（2026-10-14 主人选 B 档）。
 //
 // 为什么不靠自觉：主人明确要求"限频写进代码，不是写进你的自觉里"。
@@ -48,10 +49,7 @@ async function titleOf(bv, cache) {
   if (!bv) return ''
   if (cache[bv]) return cache[bv]
   try {
-    const r = await fetch('https://api.bilibili.com/x/web-interface/view?bvid=' + bv, {
-      headers: { 'user-agent': 'Mozilla/5.0', referer: 'https://www.bilibili.com/' },
-    })
-    const j = await r.json()
+    const j = await apiGet('https://api.bilibili.com/x/web-interface/view?bvid=' + bv, { 'user-agent': 'Mozilla/5.0', referer: 'https://www.bilibili.com/' })
     const t = String(j?.data?.title ?? '')
     if (t) cache[bv] = t
     return t

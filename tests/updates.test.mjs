@@ -44,6 +44,12 @@ test('PR 12: Electron fallback requires proof and node environment', t=>{
   const r=resolveRuntime(dir,opts);assert.equal(r.env.ELECTRON_RUN_AS_NODE,'1');assert.equal(calls.length,1)
   assert.throws(()=>resolveRuntime(dir,{...opts,probe:()=>false}),/node/)
 })
+
+test('PR 12: desktop-provided runtime is verified even without PATH', t=>{
+ const dir=temp(t), calls=[]
+ const r=resolveRuntime(dir,{home:dir,env:{PATH:'',DSH_DESKTOP_NODE_EXECUTABLE:process.execPath},probe:(p)=>{calls.push(p);return true}})
+ assert.equal(r.file,process.execPath);assert.deepEqual(calls,[process.execPath])
+})
 test('PR 3: file capture preserves stdout, error status and stderr',()=>{
   assert.equal(execFileSync(process.execPath,['-e','process.stdout.write("hello")'],{encoding:'utf8'}),'hello')
   assert.throws(()=>execFileSync(process.execPath,['-e','process.stdout.write("out");process.stderr.write("err");process.exit(7)']),e=>e.status===7&&String(e.stdout)==='out'&&String(e.stderr)==='err')

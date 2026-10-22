@@ -22,13 +22,13 @@ export function resolveRuntime(dshHome, options = {}) {
   const current = options.execPath ?? process.execPath
   const probe = options.probe ?? probeRuntime
   const bin = platform === 'win32' ? 'node.exe' : 'node'
-  const cands = [env.DSH_NODE]
+  const cands = [env.DSH_NODE, env.DSH_DESKTOP_NODE_EXECUTABLE]
   for (const root of new Set([path.join(dshHome, 'dsh-runtimes'), path.join(home, '.dsh', 'dsh-runtimes')])) {
     try { for (const d of fs.readdirSync(root)) cands.push(path.join(root, d, 'dependencies', 'node', 'bin', bin)) } catch {}
   }
   const sep = platform === 'win32' ? ';' : ':'
   for (const dir of String(env.PATH ?? '').split(sep)) if (dir) cands.push(path.join(dir.replace(/^"|"$/g, ''), bin))
-  if (platform === 'darwin') cands.push('/opt/homebrew/bin/node', '/usr/local/bin/node', '/usr/bin/node')
+  if (platform === 'darwin') cands.push('/Applications/DeepSeek Harness.app/Contents/Resources/runtime/primary-runtime/dependencies/node/bin/node', '/opt/homebrew/bin/node', '/usr/local/bin/node', '/usr/bin/node')
   if (platform === 'win32' && env.ProgramFiles) cands.push(path.join(env.ProgramFiles, 'nodejs', bin))
   if (options.allowCurrent && !electron) cands.push(current)
   for (const file of new Set(cands.filter(Boolean))) {

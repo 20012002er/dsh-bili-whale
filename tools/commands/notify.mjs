@@ -184,6 +184,7 @@ try {
     console.log(`[通知] ${title}\n${text}`)
   } else if (type === 'file') {
     const p = n.path ?? path.join(process.env.USERPROFILE || os.homedir(), '.dsh', 'whale-notify.log')
+    if (DRY) { console.log(`[dry] 通知文件：${p}（不写入）`); process.exit(0) }
     fs.mkdirSync(path.dirname(p), { recursive: true })
     fs.appendFileSync(p, JSON.stringify(payload) + '\n')
     console.log(`已写入通知文件：${p}`)

@@ -64,7 +64,10 @@ console.log(`  路径: ${imagePath}`)
 console.log(`  类型: ${kind}   ${(buf.length / 1024).toFixed(1)} KiB   ${dims ? `${dims.width}x${dims.height}` : '尺寸未解析'}`)
 if (!['png', 'jpg', 'gif'].includes(kind)) {
   console.error(`\n✗ 该接口只收 jpg / png / gif，当前是 ${kind}。先转换，例如用自带 Python + Pillow:`)
-  console.error(`  python -c "from PIL import Image; Image.open(r'${imagePath}').convert('RGBA').save(r'<out>.png')"`)
+  // 2026-10-22（PR #21 by anupamme）：对 imagePath 做转义 ——
+  //   这行是打印给人看的示例命令，用户会复制去跑；路径里带引号/反斜杠时不该拼出别的命令 ✓
+  const safePath = imagePath.replace(/\\/g, '\\\\').replace(/'/g, "\\'")
+  console.error(`  python -c "from PIL import Image; Image.open(r'${safePath}').convert('RGBA').save(r'<out>.png')"`)
   process.exit(5)
 }
 if (!dims) { console.error('✗ 没解析出尺寸，无法组装 pics'); process.exit(5) }

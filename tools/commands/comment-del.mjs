@@ -42,3 +42,4 @@ const r = await fetch('https://api.bilibili.com/x/v2/reply/del', {
 const out = await r.json()
 const hints = { 0: '成功', '-101': '未登录', '-111': 'csrf 不对', '-403': '权限不足（不是自己的评论）', '-404': '无此项', 12022: '已经被删除了' }
 console.log(`\n[go] HTTP ${r.status}  code=${out.code} ${out.message ?? ''}   ${hints[out.code] ?? ''}`)
+process.exit(out.code === 0 ? 0 : 1)

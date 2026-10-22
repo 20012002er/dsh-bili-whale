@@ -1,3 +1,4 @@
+import { apiGet } from '../lib/bili-api.mjs'
 // 拉 B 站官方字幕（带时间戳）——"看视频"里最省的一条腿：先拿文字，再决定要不要抽帧看画面。
 //
 // 用法: node subtitles.mjs <BV> [--lan ai-zh] [--out 目录] [--print 12]
@@ -31,13 +32,7 @@ const H = { 'user-agent': UA, referer: `https://www.bilibili.com/video/${bvid}/`
 // ⚠️ 不能直接 `.json()`：B 站有些端点（尤其没字幕时的兜底 /x/v2/subtitle/web/view）会回 HTML，
 //    一旦 parse 失败就抛 SyntaxError，整个命令崩掉 —— 明明只是"这条视频没有字幕"。
 //    这里统一兜成 JSON：非 JSON 就返回 { code: -1, message: 'non-JSON …' }，让下游按"没有"处理。
-const jget = async (u) => {
-  const r = await fetch(u, { headers: H })
-  const text = await r.text()
-  try { return JSON.parse(text) } catch {
-    return { code: -1, message: `non-JSON response (HTTP ${r.status}, ${String(r.headers.get('content-type') || '').split(';')[0]})`, __nonJson: true }
-  }
-}
+const jget = u => apiGet(u, H)
 
 // WBI 签名（各脚本里重复了一份，保持一致；要改就一起改）
 const MIXIN_TAB = [46,47,18,2,53,8,23,32,15,50,10,31,58,3,45,35,27,43,5,49,33,9,42,19,29,28,14,39,12,38,41,13,37,48,7,16,24,55,40,61,26,17,0,1,60,51,30,4,22,25,54,21,56,59,6,63,57,62,11,36,20,34,44,52]
