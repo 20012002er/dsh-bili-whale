@@ -1,4 +1,5 @@
 import test from 'node:test'
+import { wakePrompt } from '../lib/scheduler.js'
 import assert from 'node:assert/strict'
 import fs from 'node:fs'
 import os from 'node:os'
@@ -85,4 +86,16 @@ test('issue 14: shrinking/reordered results and same-second replies are deduplic
   assert.equal(newReplies([b,a],fb,now).fresh.length,0)
   assert.equal(newReplies([{...a,id:'c'}],fb,now).fresh.length,1)
   assert.equal(newReplies([{...a,id:'old',time:new Date(now-7200000).toISOString()}],fb,now).fresh.length,0)
+})
+
+test('wake prompt follows night.maxVideos instead of a hard-coded 5',()=>{
+  const st={date:'2026-10-22',n:12}
+  for(const mv of [1,3,5]){
+    const lines=wakePrompt(st,'',mv).split(/\r?\n/)
+    const line=lines.find((l)=>l.includes('feed 选题'))
+    assert.ok(line, '提示里应该有 feed 选题 这一行')
+    assert.match(line,new RegExp('≤'+mv+' 条'),'maxVideos='+mv+' 时应显示 ≤'+mv+' 条，实际：'+line)
+  }
+  // 不传就按 5（向后兼容 ✓）
+  assert.match(wakePrompt(st,''),/≤5 条/)
 })
