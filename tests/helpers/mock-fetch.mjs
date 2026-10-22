@@ -2,6 +2,18 @@ import fs from 'node:fs'
 globalThis.fetch = async (url, opts = {}) => {
   fs.appendFileSync(process.env.TEST_REQUESTS, JSON.stringify({url:String(url),method:opts.method ?? 'GET'})+'\n')
   let data
+  if (String(url).includes('/x/v2/reply/reply')) {
+    const u = new URL(url)
+    data = u.searchParams.get('type') === '11' && u.searchParams.get('root') === '9'
+      ? { code: 0, data: { replies: [], root: { rpid: 9, mid: 222, member: { uname: 'Owner' } } } }
+      : { code: -404 }
+    return { status: 200, ok: true, json: async () => data }
+  }
+  if (process.env.TEST_DM_FILE && String(url).includes('/get_sessions')) {
+    const last = JSON.parse(fs.readFileSync(process.env.TEST_DM_FILE, 'utf8'))
+    data = { code: 0, data: { session_list: [{ talker_id: 222, last_msg: last }] } }
+    return { status: 200, ok: true, json: async () => data }
+  }
   if (process.env.TEST_FEEDS && String(url).includes('/x/msgfeed/')) {
     const feeds=JSON.parse(fs.readFileSync(process.env.TEST_FEEDS,'utf8'))
     const kind=new URL(String(url)).pathname.split('/').pop()

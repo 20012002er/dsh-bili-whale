@@ -34,50 +34,30 @@ const CACHE_TTL_MS = 24 * 3600 * 1000
 //   日志按行追加：时间 命中/未命中 路径（不含 cookie、不含响应正文）
 const REQ_LOG = path.join(HOME, '.bili-ai', 'api-requests.log')
 const logReq = (hit, p) => {
-  try {
-    fs.appendFileSync(REQ_LOG, `${new Date().toISOString()} ${hit ? 'HIT ' : 'NET '} ${p}\n`)
-    // 2026-10-22 自查：日志会无限长 ✗ 每 200 条检查一次，超过 2000 行就只留后半段 ✓
-    reqLogWrites += 1
-    if (reqLogWrites % 200 === 0) {
-      const txt = fs.readFileSync(REQ_LOG, 'utf8').split('\n')
-      if (txt.length > 2000) fs.writeFileSync(REQ_LOG, txt.slice(-1000).join('\n'))
-    }
-  } catch {}
+  if (noCacheEnv()) return
+  try { fs.appendFileSync(REQ_LOG, `${new Date().toISOString()} ${hit ? 'HIT ' : 'NET '} ${p}\n`) } catch {}
 }
-let reqLogWrites = 0
 
 // 只缓存「静态一点的元信息」✗ 动态内容（评论/收件箱/动态流/点赞）绝不能缓存 ✓
 const CACHEABLE = [
   /^\/x\/web-interface\/(wbi\/)?view$/,           // 视频元信息
-  /^\/x\/player\/wbi\/v2$/,                       // 字幕列表
-  /^\/x\/player\/wbi\/playurl$/,                  // 播放地址
   /^\/x\/space\/wbi\/acc\/info$/,                 // 用户信息
-  /^\/x\/relation$/,                              // 关注关系
+  // 字幕/播放地址含短期授权，关注关系会变化，必须实时获取。
 ]
 // nav 只缓存 10 分钟（wbi 密钥会轮换），别放进 CACHE_TTL 那套 ✓
 const NAV_TTL_MS = 10 * 60 * 1000
 // 风控码：撞到就熔断
-// 2026-10-22 自查：-412 不能进熔断列表 ✗
-//   playurl 对「大会员专属 / 地区限制」也返回 -412 ✓ 那是内容限制，不是限流 ✓
-//   一撞就熔断整机 5~30 分钟 → 误伤 ✓
-//   真限流走 HTTP 412/429 那条路（下面单独处理 ✓）
-const BAN_CODES = new Set([-352, -799, -509, -10403])
+const BAN_CODES = new Set([-412, -352, -799, -509, -10403])
 
-// 2026-10-22 自查：每次 apiGet 都重读缓存文件（最多 400 条）✗ 一次 debrief 要读好几次 ✓
-//   加一层进程内 memo：按 mtime 失效 ✓ 同一个进程里只解析一次 ✓
-const jsonMemo = new Map()
+// 2026-10-22 实测（主人要求验的）：-412 在【播放地址】上不代表限流 ✗
+//   大会员专属 / 地区限制 / 番剧独播 都会返回 -412（HTTP 200）✓
+//   实测：拿一条「大会员专享」的 playurl 打一次 → 整机被熔断 5 分钟 ✗
+//   → 接下来别的视频连元信息都查不了 ✓ 这是误伤 ✓
+//   所以：这两个端点上的 -412 只当「这条受限」，不熔断 ✓
+const CONTENT_RESTRICTED = [/^\/x\/player\/(wbi\/)?playurl$/]
+const isContentRestricted = (p) => CONTENT_RESTRICTED.some((re) => re.test(p))
+
 function readJson(file, fallback) {
-  try {
-    const st = fs.statSync(file)
-    const key = file
-    const hit = jsonMemo.get(key)
-    if (hit && hit.mtime === st.mtimeMs) return hit.value
-    const value = JSON.parse(fs.readFileSync(file, 'utf8'))
-    jsonMemo.set(key, { mtime: st.mtimeMs, value })
-    return value
-  } catch { return fallback }
-}
-function readJsonNoMemo(file, fallback) {
   try { return JSON.parse(fs.readFileSync(file, 'utf8')) } catch { return fallback }
 }
 function writeJson(file, value) {
@@ -88,12 +68,15 @@ function writeJson(file, value) {
 }
 
 // 缓存键：去掉每次都变的签名参数（wts / w_rid）和排序，才可能命中 ✓
-function cacheKey(url) {
+function cacheKey(url, headers) {
   const u = new URL(url)
+  if (u.pathname === '/x/web-interface/view') u.pathname = '/x/web-interface/wbi/view'
   const params = [...u.searchParams.entries()]
     .filter(([k]) => k !== 'wts' && k !== 'w_rid')
-    .sort(([a], [b]) => (a < b ? -1 : 1))
-  return u.hostname + u.pathname + '?' + params.map(([k, v]) => `${k}=${v}`).join('&')
+    .sort(([a, av], [b, bv]) => a.localeCompare(b) || av.localeCompare(bv))
+  const h = new Headers(headers)
+  const account = crypto.createHash('sha256').update(h.get('cookie') ?? '').update('\0').update(h.get('authorization') ?? '').digest('hex')
+  return account + ':' + u.hostname + u.pathname + '?' + new URLSearchParams(params).toString()
 }
 const cacheable = (url) => {
   const u = new URL(url)
@@ -108,7 +91,17 @@ const isNav = (url) => {
 const noCacheEnv = () => process.env.BILI_NO_CACHE === "1"   // 每次调用时读（测试里会中途设）
 
 let lastRequestAt = 0
+let requestQueue = Promise.resolve()
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms))
+function throttle() {
+  const turn = requestQueue.then(async () => {
+    const gap = Date.now() - lastRequestAt
+    if (gap < 300) await sleep(300 - gap)
+    lastRequestAt = Date.now()
+  })
+  requestQueue = turn.catch(() => {})
+  return turn
+}
 
 function bannedUntilNow() {
   const b = readJson(BAN_FILE, {})
@@ -127,17 +120,26 @@ export async function apiGet(input, headers = {}, opts = {}) {
   // ⚠️ 缓存键必须在【改写路径之前】就算好：
   //   「读」用的是原始 /x/web-interface/view?bvid=…，
   //   「写」如果等 url 被改成 /wbi/view?…&w_rid=…（每次都不同）就永远命中不了 ✗
-  const key = cacheKey(url.href)
+  const key = cacheKey(url.href, headers)
   const canCache = cacheable(url.href) || isNav(url.href)
+  const biliHost = url.hostname === 'bilibili.com' || url.hostname.endsWith('.bilibili.com')
+  // Only stable metadata may be served stale, for at most seven days. Never
+  // return old nav identity, relations, or expiring media URLs during a ban.
+  const stale = () => {
+    if (noCache || noCacheEnv() || !cacheable(url.href)) return null
+    const hit = readJson(CACHE_FILE, {})[key]
+    return hit?.data?.code === 0 && Date.now() - Number(hit.at ?? 0) < 7 * CACHE_TTL_MS
+      ? { ...hit.data, _cached: true, _stale: true } : null
+  }
 
   // ① 熔断中：不再打网络，直接给「等多久」的清楚原因 ✗
   //    （除了 nav —— 它要用来刷新签名密钥，但熔断时也别打 ✓）
-  const banned = noCacheEnv() ? 0 : bannedUntilNow()
+  const banned = noCacheEnv() || !biliHost ? 0 : bannedUntilNow()
   if (banned) {
     const mins = Math.max(1, Math.round((banned - Date.now()) / 60000))
     // 熔断期间：能吃到缓存就吃 ✓ 吃不到就明确失败 ✓
-    const hit = noCacheEnv() ? null : readJson(CACHE_FILE, {})[key]
-    if (hit) return { ...hit.data, _cached: true, _stale: true }
+    const hit = stale()
+    if (hit) return hit
     return { code: -412, message: `HTTP 412 —— 本机被 B站 限流了，约 ${mins} 分钟后自动恢复（期间用缓存过日子）` }
   }
 
@@ -154,29 +156,28 @@ export async function apiGet(input, headers = {}, opts = {}) {
       '/x/player/playurl': '/x/player/wbi/playurl',
     }
     if (url.hostname === 'api.bilibili.com' && signedPaths[url.pathname]) {
-      const nav = await apiGet('https://api.bilibili.com/x/web-interface/nav', headers)
+      const nav = await apiGet('https://api.bilibili.com/x/web-interface/nav', headers, { noCache })
       if (!nav.data?.wbi_img) return { code: -1, message: `WBI 签名不可用：${nav.message || 'nav 未返回密钥'}` }
       url.pathname = signedPaths[url.pathname]
       url.search = signWbi(Object.fromEntries(url.searchParams), nav.data.wbi_img)
     }
 
     // ③ 节流：两次请求至少隔 300ms（贴脸连打正是被限流的典型特征 ✗）
-    const gap = Date.now() - lastRequestAt
-    if (gap < 300) await sleep(300 - gap)
-    lastRequestAt = Date.now()
+    await throttle()
+    if (biliHost && !noCacheEnv() && bannedUntilNow()) return stale() ?? { code: -412, message: 'B站风控退避中，请稍后重试' }
 
     logReq(false, url.pathname)
     const response = await fetch(url.href, { headers, signal: AbortSignal.timeout(30000) })
 
     // HTTP 412/429：平台级风控 → 熔断（默认 5 分钟，指数退避封顶 30 分钟）
-    if (response.status === 412 || response.status === 429) {
+    if (biliHost && (response.status === 412 || response.status === 429)) {
       const prev = readJson(BAN_FILE, {})
       const streak = Number(prev.streak ?? 0) + 1
-      const mins = Math.min(30, 5 * streak)
+      const mins = Math.min(30, 5 * 2 ** (streak - 1))
       if (!noCacheEnv()) setBan(mins * 60_000, `HTTP ${response.status}`)
-      if (!noCacheEnv()) writeJson(BAN_FILE, { ...readJson(BAN_FILE, {}), streak })
-      const hit = noCacheEnv() ? null : readJson(CACHE_FILE, {})[key]
-      if (hit) return { ...hit.data, _cached: true, _stale: true }
+      if (!noCacheEnv()) writeJson(BAN_FILE, { ...readJson(BAN_FILE, {}), streak, endpoint: url.pathname })
+      const hit = stale()
+      if (hit) return hit
       return { code: -412, message: `HTTP ${response.status}（B站 风控）—— 已熔断 ${mins} 分钟，别再打了` }
     }
     if (!response.ok) return { code: -1, message: `HTTP ${response.status}（B站风控或接口异常，请稍后重试；见 README 排障）` }
@@ -191,17 +192,21 @@ export async function apiGet(input, headers = {}, opts = {}) {
     }
 
     // 接口层风控码：同样熔断（B站 有时 HTTP 200 但 code=-412）
-    if (BAN_CODES.has(Number(data.code))) {
+    if (biliHost && BAN_CODES.has(Number(data.code))) {
+      // 先在「内容限制」上排除：-412 来自 playurl → 是这条视频受限，不是限流 ✓
+      if (Number(data.code) === -412 && isContentRestricted(url.pathname)) {
+        return { ...data, message: `${data.message ?? ''}（这条播放地址受限：大会员专属/地区限制，不是限流）` }
+      }
       const prev = readJson(BAN_FILE, {})
       const streak = Number(prev.streak ?? 0) + 1
-      const mins = Math.min(30, 5 * streak)
-      if (!noCacheEnv()) writeJson(BAN_FILE, { until: Date.now() + mins * 60_000, why: `code=${data.code}`, at: new Date().toISOString(), streak })
+      const mins = Math.min(30, 5 * 2 ** (streak - 1))
+      if (!noCacheEnv()) writeJson(BAN_FILE, { until: Date.now() + mins * 60_000, why: `code=${data.code}`, at: new Date().toISOString(), streak, endpoint: url.pathname })
       return { ...data, message: `${data.message ?? ''}（B站 风控 ${data.code}）—— 已熔断 ${mins} 分钟` }
     }
     // 成功了：清掉退避计数，并写缓存
     if (Number(data.code) === 0) {
       const b = readJson(BAN_FILE, {})
-      if (b.streak) writeJson(BAN_FILE, { ...b, streak: 0 })
+      if (!noCacheEnv() && b.streak && b.endpoint === url.pathname) writeJson(BAN_FILE, { ...b, streak: 0 })
       if (!noCache && canCache && !noCacheEnv()) {
         const store = readJson(CACHE_FILE, {})
         store[key] = { at: Date.now(), data }

@@ -59,4 +59,13 @@ fs.writeFileSync(process.env.TEST_FEEDS,JSON.stringify({reply:[],at:[{id:'reques
 const countBefore=messages.length
 await s3.listenTick();assert.equal(messages.length,countBefore+1);assert.match(messages.at(-1),/【主人请求总结】/)
 now+=61000;await s3.listenTick();assert.equal(messages.length,countBefore+1)
+const sameSecond = JSON.parse(fs.readFileSync(process.env.TEST_FEEDS))
+sameSecond.at.push({...sameSecond.at[0], id:'request2'})
+fs.writeFileSync(process.env.TEST_FEEDS, JSON.stringify(sameSecond))
+now+=61000;await s3.listenTick();assert.equal(messages.length,countBefore+2)
+now+=61000;await s3.listenTick();assert.equal(messages.length,countBefore+2)
+const listenFile=path.join(dsh,'whale-listen.json')
+const cursor=JSON.parse(fs.readFileSync(listenFile))
+s3.invalidate(false)
+assert.deepEqual(JSON.parse(fs.readFileSync(listenFile)),cursor,'saving settings must retain listener cursor')
 s3.stop()

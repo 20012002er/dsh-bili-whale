@@ -35,9 +35,9 @@ const REPLIED = path.join(process.env.USERPROFILE || process.env.HOME || '.', '.
 const loadReplied = () => { try { return JSON.parse(fs.readFileSync(REPLIED, 'utf8')) } catch { return { byUid: {} } } }
 const saveReplied = (o) => { try { fs.mkdirSync(path.dirname(REPLIED), { recursive: true }); fs.writeFileSync(REPLIED, JSON.stringify(o, null, 2) + '\n') } catch {} }
 // 查出"被回复的那个人"是谁（reply/reply 里 rpid === parent 的那条的作者）
-async function parentAuthor(aid, rootRpid, parentRpid) {
+async function parentAuthor(aid, rootRpid, parentRpid, replyType) {
   for (let pn = 1; pn <= 4; pn += 1) {
-    const j = await (await fetch(`https://api.bilibili.com/x/v2/reply/reply?type=1&oid=${aid}&root=${rootRpid}&pn=${pn}&ps=20`, {
+    const j = await (await fetch(`https://api.bilibili.com/x/v2/reply/reply?type=${replyType}&oid=${aid}&root=${rootRpid}&pn=${pn}&ps=20`, {
       headers: { 'user-agent': 'Mozilla/5.0', referer: 'https://www.bilibili.com/' },
     })).json()
     const list = j.data?.replies ?? []
@@ -95,7 +95,7 @@ const go = args.get('go') === true || args.has('go')
 const CHECK = args.get('check') === true || args.has('check')
 if (CHECK) {
   if (!oid) { console.error('--check 需要 --oid'); process.exit(2) }
-  const who = (root && parent) ? await parentAuthor(oid, root, parent) : null
+  const who = (root && parent) ? await parentAuthor(oid, root, parent, type) : null
   const ownerMid = String(config().owner?.mid ?? '')
   const lines = [
     `oid=${oid}  root=${root ?? '(未给)'}  parent=${parent ?? '(未给)'}  type=${type}`,
@@ -167,7 +167,7 @@ if (ONCE) {
   if (!parent || !root) {
     console.log('  [once] 没有 --root/--parent —— 这个开关只对"回复某人"生效，已忽略')
   } else {
-    const who = await parentAuthor(oid, root, parent)
+    const who = await parentAuthor(oid, root, parent, type)
     // 2026-10-22 临时诊断：把她实际传的参数 + 解析结果记下来（定位「同一命令我过她不过」）
     try {
       const fs2 = await import('node:fs')
@@ -321,7 +321,7 @@ if (out.code === 0) {
   const __ownerMid = String(config().owner?.mid ?? '')
   if (ONCE && parent && root) {
     try {
-      const who = await parentAuthor(oid, root, parent)
+      const who = await parentAuthor(oid, root, parent, type)
       // 2026-10-22：主人不进 replied.json（回他一条就把他锁 30 天 ✗）
       const isOwnerRec = who?.mid && __ownerMid && String(who.mid) === __ownerMid
       if (isOwnerRec) console.log('  [once] 被回复的是主人 → 不记账（下次还能回）✓')
