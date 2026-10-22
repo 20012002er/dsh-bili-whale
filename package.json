@@ -25,7 +25,6 @@
     "tools",
     "cordis.patch.yml",
     "README.md",
-    "examples",
     "tests",
     "AUDIT-FIXES.md",
     "LOCAL-UPDATE.md"

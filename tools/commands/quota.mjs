@@ -37,7 +37,7 @@ const load = () => {
 const save = (q) => { fs.mkdirSync(path.dirname(FILE), { recursive: true }); fs.writeFileSync(FILE, JSON.stringify({ log: q.log ?? [] }, null, 2) + '\n') }
 // ── 沉默衰减（2026-10-18 加，主人定）────────────────────────────────
 // 反馈的定义：**任何表态都算**（回她的评论 / 点赞 / 在微信里说一句 / 让她做点事…）
-// 都没有 = 沉默。沉默 ≥ silentAfterDays(3) 天开始扣：每天 -decayPerDay(1)，
+// 都没有 = 沉默。沉默 ≥ silentAfterDays(3) 天开始降，到 silentStopDays(7) 降到 0
 // 扣到 0 就停止分享；**但两本日记照常写**（那是她的日子，不是发言）。
 const FEEDBACK = path.join((process.env.USERPROFILE || process.env.HOME || '.'), '.bili-ai', 'feedback.json')
 const loadFeedback = () => { try { return JSON.parse(fs.readFileSync(FEEDBACK, 'utf8')) } catch { return { last: null, events: [] } } }
