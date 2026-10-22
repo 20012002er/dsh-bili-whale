@@ -20,7 +20,11 @@ for (let i = 0; i < argv.length; i += 1) {
 }
 const N = Number(opt.n ?? 6)
 const PER = Number(opt.per ?? 2)
-const POOL = Number(opt.pool ?? 30)
+// 2026-10-22 调（主人问「feed 是不是筛得太严」）：不是严 ✗ 是池子太小 ✗
+//   实测同一时刻：pool=30 → 只出 3 条且全是碎屑 ✗
+//                 pool=60 → 出满 5 条，两条 DSH/AI 相关 + 两条猫咪 + 一条大肥鱼 ✓
+//   代价：每个关键词多抓几条（搜索请求数不变 ✓ 只是每页多取几条 ✓）
+const POOL = Number(opt.pool ?? 60)
 
 const HOME = (process.env.USERPROFILE || process.env.HOME || '/')
 const diary = dshPath('whale-diary.md')
@@ -56,12 +60,35 @@ const wbi = (p) => {
 }
 const secs = (s) => { const p = String(s).split(':').map(Number); return p.length === 2 ? p[0] * 60 + p[1] : p[0] * 3600 + p[1] * 60 + p[2] }
 
+// 2026-10-22：搜索关键词也要用切出来的短词 ✗ 不能拿「鬼畜与怀旧向剪辑」整句去搜（搜不出东西 ✗）
+//   规则：每个偏好取一个最能搜到东西的词 —— 有分段就取第一段（鬼畜 ✓ / 怀旧 ✓），
+//        整句没有连接词可切的（如「B站生态八卦」）就取中文双字（八卦 ✓）
+const JOIN_WORDS = /[\s·,，、/]+|与|和|及|向|的|类/
+function partsOf(p) {
+  return [...new Set(String(p).split(JOIN_WORDS).map((x) => x.trim()).filter((x) => x.length >= 2))]
+}
+function searchKeywordOf(p) {
+  const parts = partsOf(p)
+  // 只有切出【多个】短段才算真切开 ✓
+  // 「B站生态八卦」切完还是一整块 ✗ 那就不能拿整句去搜（搜不出东西 ✗）
+  if (parts.length > 1) return parts[0]
+  if (parts.length === 1 && parts[0].length < 4) return parts[0]
+  const grams = []
+  const all = String(p)
+  for (let i = 0; i + 2 <= all.length; i += 1) {
+    const bg = all.slice(i, i + 2)
+    if (/^[\u4e00-\u9fa5]{2}$/.test(bg)) grams.push(bg)
+  }
+  return grams[grams.length - 1] ?? String(p)
+}
+const searchKeywords = [...new Set(prefs.slice(0, 6).map(searchKeywordOf))]
+
 const pool = []
-for (const kw of prefs.slice(0, 6)) {
+for (const kw of searchKeywords) {
   for (const order of ['click', 'pubdate']) {
     try {
       const j = await (await fetch(`https://api.bilibili.com/x/web-interface/wbi/search/type?${wbi({ search_type: 'video', keyword: kw, order, page: 1 })}`, { headers: H })).json()
-      for (const it of (j?.data?.result ?? []).slice(0, POOL / prefs.length + 4)) {
+      for (const it of (j?.data?.result ?? []).slice(0, Math.ceil(POOL / Math.max(1, searchKeywords.length)) + 4)) {
         pool.push({
           bv: it.bvid, t: String(it.title).replace(/<[^>]+>/g, ''), d: secs(it.duration),
           dm: Number(it.danmaku ?? 0), play: Number(it.play ?? 0), up: it.author, kw,
@@ -169,17 +196,44 @@ try {
 //   旧：弹幕密度 + log10(播放)×3  → 大 UP 的爆款永远霸榜 ✗
 //   新：log10(1+弹幕密度)×3 + 偏好命中×4 + 反馈学习×2.5（封顶 7.5）→ 播放量彻底移出 ✓
 //   为什么密度要取 log：不取时"92 秒 15027 弹幕"那条得 163 分，偏好加满也压不过 ✗（实测）
+// 2026-10-22 修（主人发现「鬼畜」「B站生态八卦」从来命中不了）：
+//   旧切法只认 空格/顿号/斜杠 → 「鬼畜与怀旧向剪辑」切不开 ✗ 变成 8 字长 token
+//   → 标题里必须原样出现这 8 个字 → 永远不命中 ✗
+//   新切法两步：
+//     ① 按分隔符 + 连接词（与 和 及 向 的 类）切开 → 鬼畜 / 怀旧 / 剪辑 ✓
+//     ② 切完还 ≥4 字的长块（如「B站生态八卦」）→ 补 2 字滑动窗 → B站 / 八卦 ✓
+//   ⚠️ 滑动窗只用于【命中判断】✓ 搜索关键词只用 ① 的词（搜「态八」是垃圾 ✗）
+function tokensOf(p) {
+  const parts = partsOf(p)
+  const extra = []
+  for (const part of parts) {
+    if (part.length < 4) continue
+    for (let i = 0; i + 2 <= part.length; i += 1) {
+      const bg = part.slice(i, i + 2)
+      if (/^[\u4e00-\u9fa5]{2}$/.test(bg)) extra.push(bg)   // 只收纯中文双字（否则 Live2D 会切出 Li/iv 这种垃圾 ✗）
+    }
+  }
+  return [...new Set([String(p), ...parts, ...extra])]
+}
+
 const prefTokens = prefs.map((p) => ({
   label: p,
-  tokens: [...new Set([p, ...String(p).split(/[\s·,，、/]+/).filter((t) => t.length >= 2)])],
+  tokens: tokensOf(p),   // 2026-10-22：长标签也能切碎 ✓
 }))
 const hitsOf = (title) => prefTokens.filter((p) => p.tokens.some((tok) => title.includes(tok))).map((p) => p.label)
 const densityOf = (x) => Math.log10(1 + x.dm / Math.max(30, x.d))
 // 2026-10-20：排除她自己的视频（实测刷到过自己的《大肥鱼成精了》✗ 别让自己看自己）
 const selfName = String(config().self?.name ?? "")
+// 2026-10-22 加（主人问「feed 是不是筛得太严」）：不是严 ✗ 是【没有质量下限】✗
+//   实测：候选池 66 条 → 只出 3 条，其中 2 条是 0/1 播放的碎屑 ✓
+//   注意：这不是给播放量加权 ✗（那条是主人 10-20 明确否掉的）
+//   只是丢掉「几乎无人看过」的：播放<300 且 弹幕<3，且不是多偏好命中 ✓
+const looksLikeJunk = (x) => x.play < 300 && x.dm < 3
 const uniq = [...new Map(pool.map((x) => [x.bv, x])).values()]
   .filter((x) => !seen.has(x.bv) && !likedBVs.has(x.bv) && !favBVs.has(x.bv))
   .filter((x) => !(selfName && String(x.up ?? "").includes(selfName)))
+  // 2026-10-22：碎屑丢掉落（多偏好命中 ≥2 的留着 ✓ 那可能真是小众宝藏）
+  .filter((x) => !looksLikeJunk(x) || hitsOf(x.t).length >= 2)
 const scoreOf = (x) => densityOf(x) * 3 + hitsOf(x.t).length * 4 + boostOf(x.t)
 uniq.sort((a, b) => scoreOf(b) - scoreOf(a))
 for (const x of uniq) { x._hits = hitsOf(x.t); x._score = scoreOf(x) }
@@ -190,7 +244,10 @@ const diversified = []
 for (const x of uniq) {
   const key = x._hits.length ? x._hits.join('+') : '__none__'
   kindUsed[key] = kindUsed[key] ?? 0
-  if (kindUsed[key] >= (x._hits.length ? PER : 1)) continue
+  // 2026-10-22：以前「完全没命中偏好的」只留 1 条 ✗
+//   实测：66 条候选里绝大多数标题不含偏好词 → 全落进 __none__ → 只放 1 条出来 ✗
+//   → 候选池 66 条却只给 3 条 ✓ 现在放到 3 条（配合上面的质量下限，不会进碎屑 ✓）
+  if (kindUsed[key] >= (x._hits.length ? PER : 3)) continue
   kindUsed[key] += 1
   diversified.push(x)
 }
