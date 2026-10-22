@@ -1,10 +1,7 @@
 # dsh-bili-whale 0.4.3
 
-基于上游 0.4.1 / 680bac8，新增及修复说明、GitHub 全部 issue/PR 核对、升级步骤见 [LOCAL-UPDATE.md](LOCAL-UPDATE.md)。本地回归 39 个用例通过。下方保留上游说明；新增目录、间隔和 @ 总结选项以本地更新说明为准。
+每一版的改动见 [CHANGELOG.md](CHANGELOG.md)；GitHub 上全部 issue/PR 的逐条核对见 [LOCAL-UPDATE.md](LOCAL-UPDATE.md)。本地回归 39 个用例通过。下方保留上游说明；新增目录、间隔和 @ 总结选项以本地更新说明为准。
 
-# dsh-bili-whale
-
-> 本包为人设版审查修复包 `0.3.1-audit.1`。升级步骤、修复范围及回归测试见 [AUDIT-FIXES.md](AUDIT-FIXES.md)。以该说明为准；下方保留原项目介绍。
 
 > 给 DSH 装一条**有日子的鱼**：它自己按作息刷 B 站、真看懂视频、写两本日记，把值得的 **@ 你**。
 >
@@ -317,10 +314,10 @@ sudo apt install ffmpeg    # Debian / Ubuntu
 
 ```bash
 cd <插件目录>
-node --test tests/planner.test.mjs tests/integration.test.mjs
+node --test tests/planner.test.mjs tests/integration.test.mjs tests/updates.test.mjs tests/supplement.test.mjs
 ```
 
-24 个用例，覆盖：
+57 个用例，覆盖：
 
 - 计划器：跨午夜、绝对时间戳、跳过不重抽、重启后计划仍在、按真实截止排序、旧状态迁移
 - 分享策略：开关 / 评分 / 理由 / 排名，**评论与私信两条通道都测**

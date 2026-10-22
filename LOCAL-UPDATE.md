@@ -1,6 +1,6 @@
 # GitHub 更新核对与本地修复（2026-10-22）
 
-本包版本：**0.4.2**。基于 GitHub main 的 **680bac8bdf2b379032dadcc8b02fb8bdeff3a72f**（上游 0.4.1），保留新设备 ID、作息间隔、跳过只消耗一次机会、结构化回复检测等更新。下载的 76 个上游文件已逐个校验 Git blob SHA，与该提交完全一致后再修改。
+本包版本：**0.4.3**。在 0.4.2 的基础上继续修复（本轮来自社区的三条 issue + 一个 PR），保留新设备 ID、作息间隔、跳过只消耗一次机会、结构化回复检测等更新。下载的 76 个上游文件已逐个校验 Git blob SHA，与该提交完全一致后再修改。
 
 此次只读取公开仓库、在本地修改和打包。没有推送代码、创建 PR、发表评论或改动 issue 状态；未使用用户提供的 token，交付物不包含凭据。
 
@@ -45,10 +45,10 @@
 
 ## 验证及边界
 
-- 上游原有 **25/25** 测试先通过，再修改。
-- 本包 **39/39** 自动测试通过：原用例加配置目录、PATH 与 Electron 分支、文件捕获、命名参数、间隔状态保存、凌晨计划、结构化反馈/旧消息移出、设备 ID 保存失败、通知失败返回值，以及真实调度器的模拟 @ 总结投递与去重。
-- 64 个 JavaScript/MJS 文件全部通过 node --check 语法检查。
-- 命令：`node --test tests/planner.test.mjs tests/integration.test.mjs tests/updates.test.mjs`，或 `npm test`（需自行安装 npm）。
+- 上游原有测试先通过，再修改。
+- 本包 **57/57** 自动测试通过：原用例加配置目录、PATH 与 Electron 分支、文件捕获、命名参数、间隔状态保存、凌晨计划、结构化反馈/旧消息移出、设备 ID 保存失败、通知失败返回值，以及真实调度器的模拟 @ 总结投递与去重。
+- 68 个 JavaScript/MJS 文件全部通过 node --check 语法检查。
+- 命令：`node --test tests/planner.test.mjs tests/integration.test.mjs tests/updates.test.mjs tests/supplement.test.mjs`，或 `npm test`（需自行安装 npm）。
 - 测试使用临时目录、虚构凭据和模拟网络，没有向 B 站发真实评论/私信，没有触发真实邮件/Webhook。Node v24.19.0 / Windows 上运行；Electron/macOS 分支采用受控探测测试，未完成真实 DSH Desktop/macOS 集成验证。
 - 对历史条目的“落实”包含源码对照，不能将未覆盖的外部接口当作已实测可用。新增总结是宿主提示流程，不能承诺模型每次都成功总结或发送。源码与已知遗漏已明确区分。
 
