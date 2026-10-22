@@ -43,6 +43,14 @@ async function parentAuthor(aid, rootRpid, parentRpid) {
     const list = j.data?.replies ?? []
     const hit = list.find((r) => String(r.rpid) === String(parentRpid))
     if (hit) return { mid: String(hit.mid ?? hit.member?.mid ?? ''), name: hit.member?.uname ?? '' }
+    // 2026-10-22 修（她自己诊断的，很准）：
+    //   我们要回的可能是一个【顶层评论】—— 那时 root == parent，
+    //   它根本不在楼中楼列表 replies 里 → 永远查不到 → fail-closed ✗
+    //   但同一个响应里就带着 data.root（就是那条顶层评论本身）✓ 直接用它 ✓
+    const rt = j.data?.root
+    if (rt && String(rt.rpid) === String(parentRpid)) {
+      return { mid: String(rt.mid ?? rt.member?.mid ?? ''), name: rt.member?.uname ?? '' }
+    }
     if (!list.length) break
   }
   return null
@@ -115,7 +123,12 @@ if (ONCE) {
     console.log('  [once] 没有 --root/--parent —— 这个开关只对"回复某人"生效，已忽略')
   } else {
     const who = await parentAuthor(oid, root, parent)
-    if (!who?.mid) {
+    // 2026-10-22 补回（这条在 v0.4.x 某次重写时丢了 ✗）：
+    //   这个开关是给【陌生人】防拉锯的 ✗ 对主人生效会把主人锁 30 天 ✗
+    const ownerMid = String(config().owner?.mid ?? '')
+    if (who?.mid && ownerMid && String(who.mid) === ownerMid) {
+      console.log(`  [once] 被回复的是主人（${who.name || who.mid}）→ 不适用「一个人只回一条」✓ 直接回`)
+    } else if (!who?.mid) {
       // fail-closed（2026-10-17，Kimi 评审指出）：判重系统状态未知时，默认动作是**这次不回**
       console.error('  [once] 没查到被回复者的 uid → 判重状态未知，**这次不回**（fail-closed）')
       console.error('  （确认要回就别传 --once-per-person，或者先手工确认这个人没被回过）')
@@ -243,10 +256,15 @@ if (out.code === 0) {
   const rpid = out.data?.rpid_str ?? out.data?.rpid
   console.log(`  ✅ 已发布，评论 rpid=${rpid}`)
   // once-per-person：记一笔"回过谁"，下次判重用
+  // 2026-10-22：主人不进 replied.json —— 否则回他一条就把他锁 30 天 ✗
+  const __ownerMid = String(config().owner?.mid ?? '')
   if (ONCE && parent && root) {
     try {
       const who = await parentAuthor(oid, root, parent)
-      if (who?.mid) {
+      // 2026-10-22：主人不进 replied.json（回他一条就把他锁 30 天 ✗）
+      const isOwnerRec = who?.mid && __ownerMid && String(who.mid) === __ownerMid
+      if (isOwnerRec) console.log('  [once] 被回复的是主人 → 不记账（下次还能回）✓')
+      if (who?.mid && !isOwnerRec) {
         const led = loadReplied()
         led.byUid ??= {}
         led.byUid[who.mid] ??= []
