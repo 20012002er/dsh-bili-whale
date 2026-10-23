@@ -46,9 +46,12 @@ export function recordAssessment(bvid,result) {
   const assessment={...sample,labels:result.labels.map(({id,label,reason})=>({id,label,reason:String(reason??'').slice(0,300)}))}
   writeAI(bvid,'assessment',assessment);return assessment
 }
-export function decision(bvid,oid,threshold=60) {
+// 2026-10-24 主人定：暂缓阈值写死 30%，不再做成设置项
+// 理由：这是判断她要不要在这个评论区说话的产品原则，不该让用户微调
+export const AI_SUSPECT_THRESHOLD = 30
+export function decision(bvid,oid,threshold=AI_SUSPECT_THRESHOLD) {
   const sample=readAI(bvid,'sample'), a=readAI(bvid,'assessment')
-  threshold=Number(threshold);if(!Number.isFinite(threshold)||threshold<1||threshold>100)threshold=60
+  threshold=Number(threshold);if(!Number.isFinite(threshold)||threshold<1||threshold>100)threshold=AI_SUSPECT_THRESHOLD
   if(!sample||sample.oid!==String(oid))return {status:'pending',allow:false,reason:'尚无有效样本，请先运行 ai-share sample'}
   if(sample.rows.length<20)return {status:'insufficient',allow:true,n:sample.rows.length,reason:'样本不足 20 条，无法判断；按策略允许分享'}
   if(!a||a.sampleId!==sample.sampleId)return {status:'pending',allow:false,reason:'样本尚未由 DSH 模型评估'}

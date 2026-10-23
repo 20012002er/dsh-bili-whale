@@ -26,10 +26,11 @@ test('deduplicate IDs; insufficient sample is explicit, not a fabricated score',
  assert.equal(decision(bv,'99').allow,false)
 })
 test('borderline samples expand, high ratios block, low ratios allow',()=>{
- assert.equal(assess(20,12).status,'expand')
- assert.equal(assess(40,24).status,'blocked')
- assert.equal(assess(20,2).status,'allowed')
- assert.equal(assess(40,10,20).status,'uncertain')
+ // 阈值 2026-10-24 起写死 30%（AI_SUSPECT_THRESHOLD）
+ assert.equal(assess(20,7).status,'expand')      // 35%，离 30 只有 5 个百分点
+ assert.equal(assess(40,24).status,'blocked')    // 60%
+ assert.equal(assess(20,2).status,'allowed')     // 10%
+ assert.equal(assess(40,10,20).status,'uncertain') // 25% 但含不确定 75%
 })
 test('all IDs and labels must match a fresh sample',()=>{
  const s=makeSample(bv,'42',rows,20)
