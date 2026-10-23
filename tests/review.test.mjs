@@ -1,3 +1,4 @@
+process.env.BILI_TRAFFIC_TEST = '1'
 import test, { after, beforeEach } from 'node:test'
 import assert from 'node:assert/strict'
 import fs from 'node:fs'

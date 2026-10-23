@@ -2,7 +2,7 @@
 
 她该长成什么，见 [VISION.md](VISION.md)。
 
-每一版的改动见 [CHANGELOG.md](CHANGELOG.md)；GitHub 上全部 issue/PR 的逐条核对见 [LOCAL-UPDATE.md](LOCAL-UPDATE.md)。本地回归 39 个用例通过。下方保留上游说明；新增目录、间隔和 @ 总结选项以本地更新说明为准。
+每一版的改动见 [CHANGELOG.md](CHANGELOG.md)；GitHub 上全部 issue/PR 的逐条核对见 [LOCAL-UPDATE.md](LOCAL-UPDATE.md)。请求保护修订及恢复方法见 [RISK-PROTECTION.md](RISK-PROTECTION.md)。本地回归 83 个用例通过。下方保留上游说明；新增目录、间隔和 @ 总结选项以本地更新说明为准。
 
 
 > 给 DSH 装一条**有日子的鱼**：它自己按作息刷 B 站、真看懂视频、写两本日记，把值得的 **@ 你**。
@@ -277,7 +277,7 @@ sudo apt install ffmpeg    # Debian / Ubuntu
 设置页「全天监听」里有个「**私信监听（只认主人）**」开关：
 
 ```
-每 20 秒看一次：主人那个会话有没有新私信
+活跃时每 60 秒检查主人会话；空闲时逐步延长到 15 分钟，平台要求暂停时停止查询：是否有新私信
   · 有新消息 → 叫醒她 → 她直接回（不用审核 ✓ 因为是主人）
   · 没新消息 → 什么也不做 → 零 token ✓
   · 系统通知 / 陌生人 → 一律忽略 ✗

@@ -1,3 +1,4 @@
+import { guardedFetch as fetch } from '../lib/traffic.mjs'
 // 通知分发器 —— 她看完一轮，把摘要送到哪。
 //
 // 2026-10-18 主人重定：方式只有四种（不推送 / 桌面通知 / Webhook / 自定义命令）。

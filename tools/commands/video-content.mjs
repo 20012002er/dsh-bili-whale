@@ -1,3 +1,4 @@
+import { guardedFetch as fetch } from '../lib/traffic.mjs'
 import { apiGet } from '../lib/bili-api.mjs'
 // Reconstruct what a video is about without watching it.
 //   metadata + cover + subtitles (if any) + tags + the repo it links to

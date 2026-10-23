@@ -1,3 +1,4 @@
+import { guardedFetch as fetch } from '../lib/traffic.mjs'
 // Post ONE bilibili comment on the user's behalf. Explicitly single-shot.
 //
 //   node bili-comment.mjs --oid <aid> --bvid <BV...> --message "@昵称 正文" --dry

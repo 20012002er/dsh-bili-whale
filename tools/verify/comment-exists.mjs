@@ -1,3 +1,4 @@
+import { guardedFetch as fetch } from '../lib/traffic.mjs'
 // 复核一条评论到底有没有"公开"出去。三层：
 //   [a] 视频页 HTML（服务端状态，匿名）
 //   [b] reply/reply 匿名请求  ← 公开世界的视角

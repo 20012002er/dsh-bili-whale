@@ -1,3 +1,4 @@
+import { guardedFetch as fetch } from './traffic.mjs'
 // lib/msgfeed.mjs —— B 站两个"收件箱"的共用读法（回复我的 / @我的）
 //
 // ⚠️ 踩过的坑：`/x/msgfeed/reply` 的 `item.title` **不总是**那条新回复的正文

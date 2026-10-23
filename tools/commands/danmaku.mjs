@@ -1,3 +1,4 @@
+import { guardedFetch as fetch } from '../lib/traffic.mjs'
 // Live-room danmaku: pre-flight permission check, one send, read-back verify,
 // and a real-time listener (WebSocket, no dependencies).
 //

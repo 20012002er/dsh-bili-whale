@@ -1,3 +1,4 @@
+import { guardedFetch as fetch } from '../lib/traffic.mjs'
 // Post ONE image dynamic. Does not delete anything — the caller decides.
 //
 //   node bili-dynamic-image.mjs --image <path> [--text "..."] --dry | --go

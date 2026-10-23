@@ -1,3 +1,4 @@
+import { guardedFetch as fetch } from '../lib/traffic.mjs'
 // 抓取若干视频的元信息 + 封面（供 agent 看图），封面存到 covers/<BV>.jpg
 //   node fetch-covers.mjs BV1xxx BV2yyy ...
 import fs from 'node:fs'

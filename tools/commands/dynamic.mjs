@@ -1,3 +1,4 @@
+import { guardedFetch as fetch } from '../lib/traffic.mjs'
 // One-shot dynamic (动态) test: post -> list -> remove. Same boundary as the
 // comment tool: credentials come from the local drop box, nothing is echoed.
 //

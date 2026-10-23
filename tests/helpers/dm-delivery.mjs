@@ -27,13 +27,13 @@ try {
   assert.ok(pending.pending?.receipt)
   assert.equal(pending.lastSeen, undefined)
   // The failed first message survives even if the latest inbox item changes.
-  message('2', 'second'); fail = false; now += 6000
+  message('2', 'second'); fail = false; now += 1800000
   await sched.dmTick()
   assert.equal(attempts[0], attempts[1])
   assert.match(delivered[0].content[0].text, /first/)
   assert.equal(JSON.parse(fs.readFileSync(stateFile)).pending, undefined)
-  now += 6000; await sched.dmTick()
+  now += 1800000; await sched.dmTick()
   assert.equal(delivered.length, 2)
   assert.match(delivered[1].content[0].text, /second/)
-  now += 6000; await sched.dmTick(); assert.equal(delivered.length, 2)
+  now += 1800000; await sched.dmTick(); assert.equal(delivered.length, 2)
 } finally { sched.stop() }

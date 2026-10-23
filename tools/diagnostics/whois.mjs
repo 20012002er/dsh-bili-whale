@@ -1,3 +1,4 @@
+import { guardedFetch as fetch } from '../lib/traffic.mjs'
 // 按 mid 查昵称（WBI 签名）。用法: node whois.mjs <mid> [mid...]
 import fs from 'node:fs'
 import path from 'node:path'

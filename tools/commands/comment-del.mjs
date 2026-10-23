@@ -1,3 +1,4 @@
+import { guardedFetch as fetch } from '../lib/traffic.mjs'
 // 删除自己发的一条评论。用法:
 //   node comment-del.mjs --oid <aid> --rpid <rpid> --bvid <BV> --dry | --go
 // 文档: docs/comment-add.md「删除评论」（x/v2/reply/del，只能删自己的）

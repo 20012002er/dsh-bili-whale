@@ -1,3 +1,4 @@
+import { guardedFetch as fetch } from '../lib/traffic.mjs'
 // "叫我起床"式监听：只在出现**该回的弹幕**时退出，把消息交给 agent（我）去回。
 // 与 danmaku-auto.mjs 的区别：它不发弹幕，只负责"发现 → 退出 → 让 agent 接手"。
 //
@@ -286,19 +287,26 @@ function handle(buf) {
 // 默认走轮询 gethistory：慢一点（≤interval 秒）但**可靠**——WebSocket 那条路实测会
 // 连接即断（单连接诊断正常，是我这边的重连循环有问题），因此降级为可选。
 const watchMode = String(args.get('watch') ?? 'poll')
-const intervalMs = Number(args.get('interval') ?? 8) * 1000
+const intervalMs = Math.max(30, Number(args.get('interval')) || 60) * 1000
 const deadline = Date.now() + timeoutSec * 1000
 
 if (watchMode === 'poll') {
   log(`轮询模式：每 ${intervalMs / 1000}s 查一次 gethistory，最多 ${timeoutSec}s`)
   let polls = 0
+  const info = await jget(`https://api.live.bilibili.com/room/v1/Room/get_info?room_id=${roomArg}`)
+  if (info.code !== 0) { console.error('直播间信息不可用，本次停止监听'); process.exit(3) }
+  const resolvedRoom = info.data?.room_id ?? roomArg
+  let lastHistory = '', idleRounds = 0
   let lastBeat = Date.now()
   const SKY_UNUSED = 0
   while (Date.now() < deadline) {
     polls += 1
     try {
-      const info = await jget(`https://api.live.bilibili.com/room/v1/Room/get_info?room_id=${roomArg}`)
-      const h = await jget(`https://api.live.bilibili.com/xlive/web-room/v1/dM/gethistory?roomid=${info.data?.room_id ?? roomArg}&room_type=0`)
+      const h = await jget(`https://api.live.bilibili.com/xlive/web-room/v1/dM/gethistory?roomid=${resolvedRoom}&room_type=0`)
+      if (h.code !== 0) { console.error(`弹幕读取失败 code=${h.code}，停止本轮监听`); process.exit(3) }
+      const history = JSON.stringify(h.data?.room ?? [])
+      idleRounds = history === lastHistory ? idleRounds+1 : 0
+      lastHistory = history
       // --debug：把这一轮拿到的行原样打出来（排"为什么没认出主人"用 ✓ 不打印凭据 ✗）
       if (args.has('debug')) {
         const rows = h.data?.room ?? []
@@ -307,8 +315,8 @@ if (watchMode === 'poll') {
       }
       scanRows(h.data?.room ?? [], '轮询发现')
       if (Date.now() - lastBeat > 60000) { lastBeat = Date.now(); log(`心跳：已轮询 ${polls} 次，暂无需要回复的弹幕`) }
-    } catch (e) { log(`轮询出错（忽略继续）: ${e.message}`) }
-    await new Promise((r) => setTimeout(r, intervalMs))
+    } catch (e) { log(`轮询暂停: ${e.message}`); process.exit(3) }
+    await new Promise((r) => setTimeout(r, Math.min(Math.max(intervalMs,300000), intervalMs*2**Math.min(idleRounds,5))))
   }
   saveState(Date.now())
   console.log(`AWAIT_TIMEOUT  轮询 ${polls} 次，${timeoutSec}s 内没有需要回复的弹幕`)

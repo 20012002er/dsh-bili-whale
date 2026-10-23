@@ -1,3 +1,4 @@
+import { guardedFetch as fetch } from '../lib/traffic.mjs'
 // 先确认"这串 cookie 是哪个号"——任何写操作之前都该跑一次。
 import fs from 'node:fs'
 import path from 'node:path'

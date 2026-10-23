@@ -1,3 +1,4 @@
+import { guardedFetch as fetch } from './traffic.mjs'
 import crypto from 'node:crypto'
 import fs from 'node:fs'
 import os from 'node:os'
@@ -49,13 +50,7 @@ const NAV_TTL_MS = 10 * 60 * 1000
 // 风控码：撞到就熔断
 const BAN_CODES = new Set([-412, -352, -799, -509, -10403])
 
-// 2026-10-22 实测（主人要求验的）：-412 在【播放地址】上不代表限流 ✗
-//   大会员专属 / 地区限制 / 番剧独播 都会返回 -412（HTTP 200）✓
-//   实测：拿一条「大会员专享」的 playurl 打一次 → 整机被熔断 5 分钟 ✗
-//   → 接下来别的视频连元信息都查不了 ✓ 这是误伤 ✓
-//   所以：这两个端点上的 -412 只当「这条受限」，不熔断 ✓
-const CONTENT_RESTRICTED = [/^\/x\/player\/(wbi\/)?playurl$/]
-const isContentRestricted = (p) => CONTENT_RESTRICTED.some((re) => re.test(p))
+// 播放接口的 -412 原因不能仅凭路径确定，按风控信号暂停。
 
 function readJson(file, fallback) {
   try { return JSON.parse(fs.readFileSync(file, 'utf8')) } catch { return fallback }
@@ -193,10 +188,6 @@ export async function apiGet(input, headers = {}, opts = {}) {
 
     // 接口层风控码：同样熔断（B站 有时 HTTP 200 但 code=-412）
     if (biliHost && BAN_CODES.has(Number(data.code))) {
-      // 先在「内容限制」上排除：-412 来自 playurl → 是这条视频受限，不是限流 ✓
-      if (Number(data.code) === -412 && isContentRestricted(url.pathname)) {
-        return { ...data, message: `${data.message ?? ''}（这条播放地址受限：大会员专属/地区限制，不是限流）` }
-      }
       const prev = readJson(BAN_FILE, {})
       const streak = Number(prev.streak ?? 0) + 1
       const mins = Math.min(30, 5 * 2 ** (streak - 1))
@@ -221,7 +212,7 @@ export async function apiGet(input, headers = {}, opts = {}) {
     }
     return data
   } catch (error) {
-    return { code: -1, message: error.name === 'TimeoutError' ? '请求超时（30 秒）' : '请求失败（网络异常或 WBI 签名密钥无效）' }
+    return { code: -1, message: error.name === 'TimeoutError' ? '请求超时（30 秒）' : error.code === 'BILI_TRAFFIC_PAUSED' ? error.message : '请求失败（网络异常或 WBI 签名密钥无效）' }
   }
 }
 

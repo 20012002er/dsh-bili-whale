@@ -1,3 +1,4 @@
+import { guardedFetch as fetch } from '../lib/traffic.mjs'
 // Is the @ a real mention node on the opus page (linked, with the target's mid)?
 //
 // 用法: node mention-check.mjs <dynId> [mid] [昵称]

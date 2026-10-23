@@ -1,3 +1,4 @@
+import { guardedFetch as fetch } from '../lib/traffic.mjs'
 // 盯一条评论的楼中楼，出现新回复就退出并打印 REPLY_HIT（供 agent 醒来后回复）。
 // 公开接口，不需要凭据。
 //

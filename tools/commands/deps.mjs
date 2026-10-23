@@ -1,3 +1,4 @@
+import { guardedFetch as fetch, trafficGuard } from '../lib/traffic.mjs'
 // 依赖体检（2026-10-17 加）：装完之后让 agent 自己跑一次，确认"能不能用"
 //
 // 用法：
@@ -32,12 +33,12 @@ try {
       ? `已登录：${nav.data.uname}（mid ${nav.data.mid}）`
       : `cookie 无效：code=${nav.code} ${nav.message ?? ''} —— 重新复制一次（选"长期/记住我"）`
   }
-} catch { credNote = `没有或读不了凭据文件（${cred}）` }
+} catch (e) { credNote = e.code === 'BILI_TRAFFIC_PAUSED' ? e.message : `无法验证凭据：${e.message}` }
 items.push({
   name: 'B站 cookie',
   ok: credOk,
   detail: credNote,
-  fix: '在设置里重新填 SESSDATA / bili_jct（buvid3 可留空）；注意 cookie 会过期，写操作前先跑一次本命令',
+  fix: '请求保护暂停时等待恢复；只有明确登录失效时才重新填写凭据。体检无需在每次写操作前重复执行。',
 })
 
 // ② ffmpeg（抽帧看画面）
@@ -125,7 +126,16 @@ try {
       fix = '等一分钟再看；还是这样就看设置页「依赖体检」里调度器那行的原因'
     } else if (action === 'wake' && atMs) {
       const mins = Math.round((atMs - now) / 60000)
-      if (atMs < now - 120000) {
+      // 2026-10-23 修（本鲸自己踩的假阳性 ✗）：
+      //   「计划时刻已过」不等于「调度器没在跑」✗
+      //   她醒完之后 state 里 atText/atMs 还留着那条 ✓（只把 wakes 加了 1 ✓）
+      //   → 老写法会把「刚醒过」误报成「调度器没在跑」✗（实测 21:19 那趟）
+      //   正确判据：
+      //     · wakes > 0 → 今天已经醒过 ✓ 计划执行了 ✓ 不报警
+      //     · 宽限 15 分钟（她可能在忙 / 冷却 / 上一趟还没收工 ✓）
+      if (woke > 0 && atMs < now) {
+        detail = `每 60 秒 tick · 今天已醒 ${woke}/${maxW} 次 · 计划 ${st.atText ?? ''} 已执行 ✓`
+      } else if (atMs < now - 15 * 60000) {
         ok = false
         detail = `计划 ${st.atText ?? ''} 已经过去 ${Math.abs(mins)} 分钟还没执行 → 调度器可能没在跑 ✗`
         fix = '重启 DSH；起来后看设置页「依赖体检」里调度器那行'
@@ -145,6 +155,15 @@ try {
   items.push({ name: '生物钟', ok: false, detail: '检查失败：' + String(e?.message ?? e).slice(0, 80), fix: '看设置页「养鱼」里生物钟那行；或 node bili.mjs night plan' })
 }
 
+try {
+  const state = trafficGuard().status()
+  const manual=Object.keys(state.manual??{}).length
+  let currentPause
+  try { const c=JSON.parse(fs.readFileSync(cred,'utf8'));currentPause=trafficGuard().pauseReason({cookie:`SESSDATA=${c.sessdata}`}) } catch {}
+  const pending=Object.values(state.operations??{}).filter(x=>['pending','unknown'].includes(x.status)).length
+  const paused=Number(state.until??0)>Date.now()
+  items.push({name:'全局请求保护',ok:!currentPause&&!pending,detail:`${currentPause??'当前账号可请求'}；${manual} 个会话凭据曾需人工处理，${pending} 条发送结果待核查`,fix:'运行 node tools/bili.mjs traffic status 查看。人工核查前不要重发或解除暂停。'})
+} catch(e) {items.push({name:'全局请求保护',ok:false,detail:e.message,fix:'检查请求保护状态文件，不要删除状态来绕过限制'})}
 const bad = items.filter((i) => !i.ok)
 
 if (asJson) {

@@ -1,3 +1,4 @@
+import { guardedFetch as fetch } from '../lib/traffic.mjs'
 // 搜索 B 站视频（WBI 签名 + cookie）。用法: node search.mjs <关键词> [页码]
 import fs from 'node:fs'
 import path from 'node:path'

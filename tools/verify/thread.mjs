@@ -1,3 +1,4 @@
+import { guardedFetch as fetch } from '../lib/traffic.mjs'
 // Dump the whole thread under our root comment: who said what, and how it nests.
 const AID = process.argv[2]
 const BVID = process.argv[3]

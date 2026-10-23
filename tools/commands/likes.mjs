@@ -1,3 +1,4 @@
+import { guardedFetch as fetch } from '../lib/traffic.mjs'
 // 「收到的赞」—— 谁赞了什么（2026-10-18 加，主人指出 B站客户端能看到点赞的人）
 //
 // 端点（实测 2026-10-18 可用）：GET x/msgfeed/like?build=0&mobi_app=web

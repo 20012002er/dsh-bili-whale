@@ -1,3 +1,4 @@
+import { guardedFetch as fetch } from '../lib/traffic.mjs'
 // 选题器：照"她自己的偏好"挑今天该看什么。**只读**，不产生任何对外动作。
 //
 // 用法: node feed.mjs [--n 6] [--per 2] [--pool 30]
@@ -83,11 +84,36 @@ function searchKeywordOf(p) {
 }
 const searchKeywords = [...new Set(prefs.slice(0, 6).map(searchKeywordOf))]
 
+// 2026-10-23 改（主人：feed 27 秒太久 ✗）：
+//   以前 6 个词 × 2 种排序 = 12 次搜索 ✗ 加上请求保护层的 1500ms → 18 秒 ✗
+//   现在每个词只搜一种排序，按词交替 click / pubdate ✓ → 6 次 ✓
+//   （两种排序都还覆盖着 ✓ 只是每个词只取一种 ✓ 池子小一点但候选够了 ✓）
+// 2026-10-23：搜索结果按「关键词+排序」缓存 10 分钟 ✓
+//   动机：一晚她可能跑两次 feed ✗ 第二次完全一样 ✓ 没必要再打 6 次请求 ✓
+//   10 分钟够短，不会让她一直看同一批东西 ✓
+const SEARCH_CACHE = path.join(process.env.USERPROFILE || process.env.HOME || '.', '.bili-ai', 'feed-search-cache.json')
+const SEARCH_TTL_MS = 10 * 60 * 1000
+async function searchCached(kw, order) {
+  const key = kw + '|' + order
+  let store = {}
+  try { store = JSON.parse(fs.readFileSync(SEARCH_CACHE, 'utf8')) } catch {}
+  const hit = store[key]
+  if (hit && Date.now() - Number(hit.at ?? 0) < SEARCH_TTL_MS) return hit.data
+  const j = await (await fetch(`https://api.bilibili.com/x/web-interface/wbi/search/type?${wbi({ search_type: 'video', keyword: kw, order, page: 1 })}`, { headers: H })).json()
+  if (j && j.code === 0) {
+    store[key] = { at: Date.now(), data: j }
+    // 只留最近 40 条，别无限长 ✓
+    const keys = Object.keys(store)
+    if (keys.length > 40) { keys.sort((a,b) => (store[a].at??0) - (store[b].at??0)); for (const k of keys.slice(0, keys.length - 40)) delete store[k] }
+    try { fs.writeFileSync(SEARCH_CACHE, JSON.stringify(store)) } catch {}
+  }
+  return j
+}
 const pool = []
-for (const kw of searchKeywords) {
-  for (const order of ['click', 'pubdate']) {
+for (const [kwIndex, kw] of searchKeywords.entries()) {
+  for (const order of [kwIndex % 2 === 0 ? 'click' : 'pubdate']) {
     try {
-      const j = await (await fetch(`https://api.bilibili.com/x/web-interface/wbi/search/type?${wbi({ search_type: 'video', keyword: kw, order, page: 1 })}`, { headers: H })).json()
+      const j = await searchCached(kw, order)
       for (const it of (j?.data?.result ?? []).slice(0, Math.ceil(POOL / Math.max(1, searchKeywords.length)) + 4)) {
         pool.push({
           bv: it.bvid, t: String(it.title).replace(/<[^>]+>/g, ''), d: secs(it.duration),
