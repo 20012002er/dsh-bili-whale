@@ -56,8 +56,15 @@ const parsed = (content) => {
 
 async function poll() {
   const u = 'https://api.vc.bilibili.com/session_svr/v1/session_svr/get_sessions?session_type=1&group_id=0&count=20&mobi_app=web'
-  const r = await fetch(u, { headers: H })
-  const j = await r.json().catch(() => ({}))
+  // 测试钩子：设了 TEST_DM_JSON 就直接读这个文件当 get_sessions 的返回 ✓
+  //   只给回归测试用 ✓ 不设就正常打网络 ✓
+  let j
+  if (process.env.TEST_DM_JSON) {
+    j = JSON.parse(fs.readFileSync(process.env.TEST_DM_JSON, 'utf8'))
+  } else {
+    const r = await fetch(u, { headers: H })
+    j = await r.json().catch(() => ({}))
+  }
   if (j.code !== 0) return { ok: false, why: `get_sessions code=${j.code} ${j.message ?? ''}` }
   const list = j.data?.session_list ?? []
   const mine = list.find((s) => String(s.talker_id) === OWNER)
