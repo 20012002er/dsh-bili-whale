@@ -1,7 +1,7 @@
-// 2026-10-23 改：下限从 60 秒放宽到 15 秒
-//   原因：私信监听想要 20 秒基础间隔 ✗（要像聊天 ✓），以前被 60 秒下限悄悄顶掉了 ✗
-//   退避不变：base × 2^n（n = 连续空转次数），封顶 15 分钟 ✓
-export function pollDelay(baseSeconds, idleRounds) {
-  const base = Math.max(15, Number(baseSeconds) || 60)
-  return Math.min(Math.max(base, 900), base * 2 ** Math.min(8, Math.max(0, idleRounds))) * 1000
+// 正常空闲保持基础间隔；仅连续失败退避，最长 15 分钟（保留更长的自定义间隔）。
+export function pollDelay(baseSeconds, failureRounds = 0) {
+  const value = Number(baseSeconds)
+  const base = Number.isFinite(value) && value > 0 ? Math.max(15, value) : 60
+  const rounds = Number.isFinite(failureRounds) ? Math.min(8, Math.max(0, failureRounds)) : 0
+  return Math.min(Math.max(base, 900), base * 2 ** rounds) * 1000
 }

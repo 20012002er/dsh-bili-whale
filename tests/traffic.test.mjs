@@ -84,7 +84,7 @@ test('corrupt protection state refuses network instead of resetting budgets',asy
  const s=setup(t);fs.writeFileSync(path.join(s.directory,'traffic-state.json'),'{broken')
  await assert.rejects(s.guard.fetch('https://api.bilibili.com/x/one'),/损坏/);assert.equal(s.calls(),0)
 })
-test('idle polling backs off to fifteen minutes and resets on activity',()=>{
+test('failed polling backs off to fifteen minutes and resets after success',()=>{
  assert.equal(pollDelay(60,0),60000);assert.equal(pollDelay(60,1),120000)
  assert.equal(pollDelay(60,20),900000);assert.equal(pollDelay(300,2),900000)
  assert.equal(pollDelay(60,0),60000)
