@@ -29,7 +29,10 @@ test('failed delivery retries persona; concurrent channels inject only once; edi
   await Promise.all([d.send(f.request),d.send(f.request),d.send(f.request)])
   assert.equal(f.sent.filter(r=>r.content[0].text.includes('PERSONA-A')).length,1)
   f.persona('PERSONA-B');await d.send(f.request);assert.match(f.sent.at(-1).content[0].text,/PERSONA-B/)
-  await f.make().send(f.request);assert.doesNotMatch(f.sent.at(-1).content[0].text,/PERSONA-B/)
+  // 2026-10-24 改（审查报告第 3 条）：重启后【第一次投递】现在会重新注入人设 ✓
+  //   原因：DSH 的 create() 分不出"新建会话"还是"复用"，接口里没有那个信息 ✗
+  //   与其赌"宿主会话还在"→ 她重启后失忆 ✗，不如每次重启多重注入一次（~1000 字）✓
+  await f.make().send(f.request);assert.match(f.sent.at(-1).content[0].text,/PERSONA-B/)
 })
 test('rotation waits for idle, preserves old session and restores persona/diary',async t=>{
   const f=fixture(t,{sessionRotateDays:1,personaOncePerSession:true}),d=f.make()
