@@ -17,7 +17,16 @@ globalThis.setInterval=globalThis.setTimeout=()=>({});globalThis.clearInterval=g
 let dmCalls=0,commentCalls=0,failDm=false,failComment=false,failAt=false,invalidDm=false,hit=false,receipt=0
 cp.execFile=(exe,args,opts,cb)=>{
   if(args.includes('--ack')){queueMicrotask(()=>cb(null,'ok',''));return {kill(){}}}
-  dmCalls++;queueMicrotask(()=>cb(failDm?Error('offline'):null,invalidDm?'not-json':JSON.stringify(hit?{hit:true,receipt:String(++receipt),text:'hello',mid:222}:{hit:false}),''));return {kill(){}}
+  dmCalls++
+  // 2026-10-24 修：真实的 dm-await 退出码是 0=命中 / 1=没命中 / 3=出错 ✗
+  //   以前这里「没命中」也回调 err=null（= 退出 0）✗
+  //   → 掩盖了 scheduler 把「正常空收件箱」当失败的 bug ✗
+  const out=invalidDm?'not-json':JSON.stringify(hit?{hit:true,receipt:String(++receipt),text:'hello',mid:222}:{hit:false})
+  let err=null
+  if(failDm)err=Object.assign(Error('offline'),{code:3})
+  else if(!invalidDm&&!hit)err=Object.assign(Error('no hit'),{code:1})
+  queueMicrotask(()=>cb(err,out,''))
+  return {kill(){}}
 };syncBuiltinESMExports()
 globalThis.fetch=async url=>{
   if(String(url).includes('/at')&&failAt)throw Error('at offline')
