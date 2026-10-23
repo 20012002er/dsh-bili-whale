@@ -181,7 +181,13 @@ if (!OWNER) { console.error('✗ 配置里 owner.mid 为空 —— 私信只发�
 if (MSG.length > 300) { console.error(`✗ 私信太长（${MSG.length} > 300 字），退化成刷屏了 ✗`); process.exit(2) }
 
 const meInfo = await me()
-if (String(meInfo.mid) === ONLY_TO) { console.error('✗ 不能给自己发私信'); process.exit(2) }
+if (String(meInfo.mid) === ONLY_TO) {
+  // 2026-10-23 修（issue #22）：只报「不能给自己发私信」没有出路 ✗
+  console.error('✗ 不能给自己发私信（owner.mid 就是 cookie 这个号）');
+  console.error('  私信通道需要【第二个 B 站号】：设 owner.mid 为另一个号，且双方手动互关');
+  console.error('  只有一个号时：分享方式选「评论区 @」，推送选桌面通知 / Webhook / 自定义命令 ✓');
+  process.exit(2)
+}
 
 const rel = await relation(ONLY_TO)
 if (!rel.ok) { console.error(`✗ ${rel.why}`); process.exit(3) }
