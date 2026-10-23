@@ -30,6 +30,22 @@ test('successful approval removes draft',t=>{const env=sandbox(t);env.TEST_SEND_
 test('missing runtime reports scheduler failure',t=>{const env=sandbox(t);delete env.DSH_NODE;env.PATH='';delete env.ProgramFiles;env.TEST_NO_NODE='1';const r=run(env,'tests/helpers/plugin.mjs');assert.equal(r.status,0,r.stderr)})
 test('real scheduler: midnight, retries, history, persona and disposal',t=>{const r=run(sandbox(t),'tests/helpers/scheduler.mjs');assert.equal(r.status,0,r.stderr)})
 test('DM delivery retries persisted message and acknowledges only after success',t=>{const r=run(sandbox(t),'tests/helpers/dm-delivery.mjs');assert.equal(r.status,0,r.stderr)})
+
+test('scheduler timeouts retain ownership until late delivery completes for all three channels',t=>{
+  const r=run(sandbox(t),'tests/helpers/scheduler-timeout.mjs');assert.equal(r.status,0,r.stdout+r.stderr)
+})
+
+test('health check distinguishes a completed plan from a later overdue plan',t=>{
+  const env=sandbox(t,{night:{windows:[{start:'00:00',end:'24:00',wakes:2}]}})
+  const dir=path.join(env.HOME,'.dsh');fs.mkdirSync(dir,{recursive:true})
+  for(const fired of [false,true]) {
+    fs.writeFileSync(path.join(dir,'whale-night.json'),JSON.stringify({action:'wake',wakes:1,atMs:Date.now()-3600000,fired,woke:fired}))
+    const r=run(env,'tools/commands/deps.mjs',['--json'])
+    const item=JSON.parse(r.stdout).items.find(x=>x.name==='生物钟')
+    assert.equal(item.ok,fired,JSON.stringify(item))
+    assert.match(item.detail, fired ? /已执行/ : /还没执行/)
+  }
+})
 test('dynamic root comment check uses type 11 and normalizes root zero',t=>{
  const env=sandbox(t)
  const r=run(env,'tools/commands/comment.mjs',['--oid','1','--root','0','--parent','9','--type','11','--check'])

@@ -126,14 +126,8 @@ try {
       fix = '等一分钟再看；还是这样就看设置页「依赖体检」里调度器那行的原因'
     } else if (action === 'wake' && atMs) {
       const mins = Math.round((atMs - now) / 60000)
-      // 2026-10-23 修（本鲸自己踩的假阳性 ✗）：
-      //   「计划时刻已过」不等于「调度器没在跑」✗
-      //   她醒完之后 state 里 atText/atMs 还留着那条 ✓（只把 wakes 加了 1 ✓）
-      //   → 老写法会把「刚醒过」误报成「调度器没在跑」✗（实测 21:19 那趟）
-      //   正确判据：
-      //     · wakes > 0 → 今天已经醒过 ✓ 计划执行了 ✓ 不报警
-      //     · 宽限 15 分钟（她可能在忙 / 冷却 / 上一趟还没收工 ✓）
-      if (woke > 0 && atMs < now) {
+      // Today's wake count does not establish that this particular plan ran.
+      if (st.fired === true || st.woke === true) {
         detail = `每 60 秒 tick · 今天已醒 ${woke}/${maxW} 次 · 计划 ${st.atText ?? ''} 已执行 ✓`
       } else if (atMs < now - 15 * 60000) {
         ok = false
