@@ -282,9 +282,7 @@ console.log(`  手机绑定: ${nav.data.mobile_verified ? '是' : '否'}   硬�
 console.log('  ⚠️ 请确认这就是你的小号；若是主号，停手、换 cookie')
 
 const params = { type, oid: String(oid), message, plat: '1', csrf: String(cred.bili_jct) }
-// 2026-10-23：issue #26 说纯文本 @ 不会通知 ✗ —— 主人实测【每次都能收到】✓ 那条说法不成立 ✓
-//   曾经加过 at_name_to_mid，已撤回 ✓ 不动能正常工作的东西 ✓
-//   教训：别人的复现 ≠ 我们的复现 ✗ 改之前先自己验一条 ✓
+// 2026-10-23：issue #26 的前提不成立 ✗（主人实测纯文本 @ 每次都收得到 ✓）→ 不加 at_name_to_mid ✓
 if (root) params.root = String(root)
 if (parent) params.parent = String(parent)
 const signed = await wbiSign(params)

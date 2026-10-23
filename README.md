@@ -1,3 +1,5 @@
+Issue #27：会话轮换、人设去重与抽帧改进，见 [ISSUE27-FIX.md](ISSUE27-FIX.md)。两个会话开关默认关闭。
+
 试用功能：主动 @ 分享前检查疑似 AI 评论，默认关闭。开启方式和限制见 [AI-SHARE-TRIAL.md](AI-SHARE-TRIAL.md)。
 
 # dsh-bili-whale 0.4.5

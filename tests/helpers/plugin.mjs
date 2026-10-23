@@ -38,6 +38,12 @@ if(process.env.TEST_NO_NODE) {
   const settings=await request('settings',{diary:{push:false}})
   assert.equal(settings.data.config.diary.push,false)
   assert.deepEqual(JSON.parse(fs.readFileSync(stateFile)),preserved)
+  const sessionSettings=await request('settings',{sessionRotateDays:3,personaOncePerSession:true})
+  assert.equal(sessionSettings.status,200)
+  assert.equal(sessionSettings.data.config.sessionRotateDays,3)
+  assert.equal(sessionSettings.data.config.personaOncePerSession,true)
+  assert.equal((await request('settings',{sessionRotateDays:-1})).status,400)
+  assert.equal((await request('settings',{personaOncePerSession:'false'})).status,400)
   const text='测试人设：使用简洁句子。'
   assert.equal((await request('persona',{text})).status,200)
   assert.equal((await request('persona',{},'GET')).data.text,text)

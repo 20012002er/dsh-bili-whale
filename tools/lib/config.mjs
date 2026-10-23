@@ -24,6 +24,8 @@ export { configPath } from './paths.mjs'
 
 /** 中性默认值：不含任何作者的个人信息，换个人也能跑。 */
 export const DEFAULTS = {
+  sessionRotateDays: 0,
+  personaOncePerSession: false,
   risk: { minGapMs: 1500, readHourly: 600, readDaily: 3000, writeHourly: 12, writeDaily: 30, writeGapSec: 120, dmGapSec: 60 },
   persona: {
     name: '<角色名>',

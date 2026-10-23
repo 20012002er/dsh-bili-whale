@@ -1,3 +1,4 @@
+import { watchOptions } from '../lib/watch-options.mjs'
 import { guardedFetch as fetch } from '../lib/traffic.mjs'
 import { apiGet } from '../lib/bili-api.mjs'
 // 让 agent 真"看"视频：取直链 → 下载 → ffmpeg 抽帧拼成一张九宫格 → 输出图片路径（再交给 read_image 看）
@@ -16,9 +17,9 @@ import { dshPath } from '../lib/paths.mjs'
 
 let FFMPEG
 try { FFMPEG = requireFfmpeg() } catch (e) { console.error(String(e.message)); process.exit(2) }
-const bvid = process.argv[2]
-const grid = (process.argv[3] ?? '3x3').toLowerCase()
-const outDir = process.argv[4] ?? dshPath('shots', 'video')
+let parsed
+try { parsed = watchOptions(process.argv.slice(2), dshPath('shots','video')) } catch(e) { console.error(e.message); process.exit(2) }
+const {bvid,grid,outDir,tile:TILE} = parsed
 if (!bvid) { console.error('用法: node bili-watch.mjs <BV号> [列x行] [outDir]'); process.exit(2) }
 const [cols, rows] = grid.split('x').map(Number)
 if (!cols || !rows) { console.error('格子格式应是 3x3 这样'); process.exit(2) }
@@ -108,10 +109,10 @@ fs.mkdirSync(tmp, { recursive: true })
 try {
   times.forEach((t, i) => {
     execFileSync(FFMPEG, ['-y', '-loglevel', 'error', '-ss', t.toFixed(2), '-i', mp4,
-      '-frames:v', '1', path.join(tmp, `f${String(i).padStart(2, '0')}.jpg`)], { stdio: 'inherit' })
+      '-frames:v', '1', '-q:v', '2', path.join(tmp, `f${String(i).padStart(2, '0')}.jpg`)], { stdio: 'inherit' })
   })
   execFileSync(FFMPEG, ['-y', '-loglevel', 'error', '-i', path.join(tmp, 'f%02d.jpg'), '-vf',
-    `scale=480:-1,tile=${cols}x${rows}`, '-frames:v', '1', sheet], { stdio: 'inherit' })
+    `scale=${TILE}:-1,tile=${cols}x${rows}`, '-frames:v', '1', sheet], { stdio: 'inherit' })
   if (!fs.existsSync(sheet)) throw new Error('九宫格没生成')
   console.log(`\nSHEET: ${sheet}`)
 } catch (e) {

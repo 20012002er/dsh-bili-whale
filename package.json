@@ -12,7 +12,7 @@
   ],
   "type": "module",
   "scripts": {
-    "test": "node --test tests/planner.test.mjs tests/integration.test.mjs tests/updates.test.mjs tests/supplement.test.mjs tests/review.test.mjs tests/traffic.test.mjs tests/edit-dynamic.test.mjs tests/ai-share.test.mjs"
+    "test": "node --test tests/planner.test.mjs tests/integration.test.mjs tests/updates.test.mjs tests/supplement.test.mjs tests/review.test.mjs tests/traffic.test.mjs tests/edit-dynamic.test.mjs tests/ai-share.test.mjs tests/mention.test.mjs tests/issue27.test.mjs"
   },
   "main": "lib/index.js",
   "exports": {
@@ -29,7 +29,8 @@
     "AUDIT-FIXES.md",
     "RISK-PROTECTION.md",
     "AI-SHARE-TRIAL.md",
-    "LOCAL-UPDATE.md"
+    "LOCAL-UPDATE.md",
+    "ISSUE27-FIX.md"
   ],
   "dsh": {
     "bundle": {

@@ -68,5 +68,7 @@
     "args": [
       "C:\\Users\\<本机用户名>\\.dsh\\profiles\\desktop\\node_modules\\dsh-wechat-plugin\\cli.js"
     ]
-  }
+  },
+  "sessionRotateDays": 0,
+  "personaOncePerSession": false
 }
