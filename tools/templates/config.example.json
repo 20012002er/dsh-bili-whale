@@ -1,5 +1,7 @@
 {
-  "_readme": "复制成 ~/.dsh/bili-whale.config.json 再改；所有字段都有默认值，不用全填 ✓",
+  "_readme": "复制成 ~/.dsh/bili-whale.config.json 再改；所有字段都有默认值，不用全填 ✓ 下面这些是【保守默认】，小号照这个跑最安全 ✓",
+  "_risk_note": "请求保护：默认值给的是「刚创的小号也扛得住」的量。你自己的老号想放开，直接把 risk 里那几个数调大即可 ✓",
+  "_listen_note": "监听默认：评论监听【关】、私信监听【开但 60 秒一轮】。长时间高频轮询是小号被风控的头号原因 ✗ 想开评论监听自己去设置页打勾 ✓",
   "persona": {
     "name": "",
     "ownerTitle": "主人",
@@ -35,14 +37,26 @@
   "share": {
     "enabled": true,
     "minScore": 13,
-    "silentAfterDays": 3
+    "silentAfterDays": 3,
+    "aiCommentGuard": false
+  },
+  "risk": {
+    "minGapMs": 1500,
+    "readHourly": 600,
+    "readDaily": 3000,
+    "writeHourly": 12,
+    "writeDaily": 30,
+    "writeGapSec": 120,
+    "dmGapSec": 60
   },
   "listen": {
-    "comment": true,
-    "commentIntervalSec": 300,
+    "comment": false,
+    "commentIntervalSec": 60,
     "scope": "both",
     "oncePerPerson": true,
-    "allDay": true,
+    "allDay": false,
+    "dm": true,
+    "dmIntervalSec": 60,
     "live": false,
     "liveRoom": "",
     "liveScope": "owner"
@@ -60,14 +74,12 @@
     "maxWakesPerDay": 1
   },
   "notify": {
-    "type": "command",
+    "type": "none",
     "url": "",
     "template": "text",
-    "cmd": "C:\\Users\\<本机用户名>\\.dsh\\dsh-runtimes\\dsh-primary-runtime\\dependencies\\node\\bin\\node.exe",
+    "cmd": "",
     "path": "",
-    "args": [
-      "C:\\Users\\<本机用户名>\\.dsh\\profiles\\desktop\\node_modules\\dsh-wechat-plugin\\cli.js"
-    ]
+    "args": []
   },
   "sessionRotateDays": 0,
   "personaOncePerSession": false
