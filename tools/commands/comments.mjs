@@ -1,3 +1,4 @@
+import { cacheComments } from '../lib/ai-share.mjs'
 import { apiGet } from '../lib/bili-api.mjs'
 // 拉一条视频的热评 / 最新评论（只读）——「看完的人怎么看」那一路，从 debrief 里拆出来单用。
 //
@@ -84,6 +85,8 @@ const list = [
   ...top,
   ...(Array.isArray(rep.data?.replies) ? rep.data.replies.map((r) => one(r)) : []),
 ]
+
+if (PN === 1) { try { cacheComments(bvid, aid, SORT === 2 ? "hot" : "time", list) } catch {} }
 
 if (AS_JSON) {
   console.log(JSON.stringify({

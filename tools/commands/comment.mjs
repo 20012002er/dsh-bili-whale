@@ -1,3 +1,4 @@
+import { decision, notifyOnce } from '../lib/ai-share.mjs'
 import { guardedFetch as fetch } from '../lib/traffic.mjs'
 // Post ONE bilibili comment on the user's behalf. Explicitly single-shot.
 //
@@ -208,6 +209,21 @@ if (ONCE) {
   }
 }
 
+// Only active video shares are subject to this policy, never ordinary replies.
+if (SHARE && !parent && type === '1' && config().share?.via === 'comment' && config().share?.aiCommentGuard === true) {
+  const result = decision(String(bvid??''), String(oid), config().share?.aiThreshold)
+  console.log('[评论检查] '+JSON.stringify(result))
+  if (!result.allow) {
+    if (go) try {
+      await notifyOnce(String(bvid), result, async text => {
+        if (['none','stdout',''].includes(String(config().notify?.type??'none'))) throw Error('未配置有效推送渠道')
+        execFileSync(NODE_EXE,[path.join(path.dirname(fileURLToPath(import.meta.url)),'notify.mjs'),text,'--title','分享前评论检查'],{encoding:'utf8',timeout:30000})
+      })
+    } catch(e) { console.error('推送失败：'+e.message) }
+    console.error('暂缓分享。先运行 ai-share sample <BV>，由当前模型提交评估；expand 时用 --more 补样。')
+    process.exit(3)
+  }
+}
 const credPath = path.join((process.env.USERPROFILE || process.env.HOME || '/'), '.bili-ai', 'credentials.json')
 if (!fs.existsSync(credPath)) {
   console.error(`credentials file missing: ${credPath}`)

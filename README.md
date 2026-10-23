@@ -1,3 +1,5 @@
+试用功能：主动 @ 分享前检查疑似 AI 评论，默认关闭。开启方式和限制见 [AI-SHARE-TRIAL.md](AI-SHARE-TRIAL.md)。
+
 # dsh-bili-whale 0.4.5
 
 她该长成什么，见 [VISION.md](VISION.md)。
