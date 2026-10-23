@@ -1,4 +1,5 @@
 import { guardedFetch as fetch } from '../lib/traffic.mjs'
+import { dshPath } from '../lib/paths.mjs'
 // 通知分发器 —— 她看完一轮，把摘要送到哪。
 //
 // 2026-10-18 主人重定：方式只有四种（不推送 / 桌面通知 / Webhook / 自定义命令）。
@@ -184,7 +185,8 @@ try {
   } else if (type === 'stdout') {
     console.log(`[通知] ${title}\n${text}`)
   } else if (type === 'file') {
-    const p = n.path ?? path.join(process.env.USERPROFILE || os.homedir(), '.dsh', 'whale-notify.log')
+    // 2026-10-23 修（issue #27）：日志也要跟 DSH_HOME 走 ✓
+    const p = n.path ?? dshPath('whale-notify.log')
     if (DRY) { console.log(`[dry] 通知文件：${p}（不写入）`); process.exit(0) }
     fs.mkdirSync(path.dirname(p), { recursive: true })
     fs.appendFileSync(p, JSON.stringify(payload) + '\n')

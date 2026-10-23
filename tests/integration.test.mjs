@@ -37,7 +37,7 @@ test('scheduler timeouts retain ownership until late delivery completes for all 
 
 test('health check distinguishes a completed plan from a later overdue plan',t=>{
   const env=sandbox(t,{night:{windows:[{start:'00:00',end:'24:00',wakes:2}]}})
-  const dir=path.join(env.HOME,'.dsh');fs.mkdirSync(dir,{recursive:true})
+  const dir=env.DSH_HOME;fs.mkdirSync(dir,{recursive:true})   // 2026-10-23: 状态文件跟 DSH_HOME 走 ✓ 不是 HOME/.dsh ✗
   for(const fired of [false,true]) {
     fs.writeFileSync(path.join(dir,'whale-night.json'),JSON.stringify({action:'wake',wakes:1,atMs:Date.now()-3600000,fired,woke:fired}))
     const r=run(env,'tools/commands/deps.mjs',['--json'])

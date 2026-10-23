@@ -1,4 +1,5 @@
 import { guardedFetch as fetch, trafficGuard } from '../lib/traffic.mjs'
+import { dshPath } from '../lib/paths.mjs'
 // 依赖体检（2026-10-17 加）：装完之后让 agent 自己跑一次，确认"能不能用"
 //
 // 用法：
@@ -104,8 +105,10 @@ try {
 //   ⚠️ deps.mjs 是独立进程，读不到插件内存里的 SCHED_STATUS
 //   → 只能从【配置 + 状态文件】推断 ✓
 try {
-  const cfgPath = process.env.BILI_WHALE_CONFIG || path.join(HOME, '.dsh', 'bili-whale.config.json')
-  const statePath = path.join(HOME, '.dsh', 'whale-night.json')
+  // 2026-10-23 修（issue #27，@Schumchanvi 报的）：自定义 DSH_HOME 时这里读错目录 ✗
+  //   以前写死 path.join(HOME, '.dsh', ...) ✗ → 体检误报「配置里没有任何作息窗口」✗
+  const cfgPath = process.env.BILI_WHALE_CONFIG || dshPath('bili-whale.config.json')
+  const statePath = dshPath('whale-night.json')
   const cfg = JSON.parse(fs.readFileSync(cfgPath, 'utf8'))
   const night = cfg.night ?? {}
   const windows = Array.isArray(night.windows) ? night.windows : []

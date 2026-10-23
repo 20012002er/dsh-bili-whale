@@ -69,9 +69,9 @@ try {
 }
 
 // ④ 数据目录
-for (const d of ['.bili-ai', '.dsh']) {
-  const p = path.join(HOME, d)
-  line(fs.existsSync(p) ? OK : NO, '目录 ' + d, p)
+// 2026-10-23 修（issue #27）：'.dsh' 那条要看 DSH_HOME ✗ 不能写死 HOME/.dsh
+for (const [label, p] of [['.bili-ai', path.join(HOME, '.bili-ai')], ['DSH_HOME', DSH]]) {
+  line(fs.existsSync(p) ? OK : NO, '目录 ' + label, p)
 }
 const DIARY = path.join(DSH, 'whale-diary.md')
 line(fs.existsSync(DIARY) ? OK : WARN, '日记', fs.existsSync(DIARY) ? '已存在' : '还没建（她第一次醒来会写）')

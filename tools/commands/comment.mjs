@@ -282,6 +282,15 @@ console.log(`  手机绑定: ${nav.data.mobile_verified ? '是' : '否'}   硬�
 console.log('  ⚠️ 请确认这就是你的小号；若是主号，停手、换 cookie')
 
 const params = { type, oid: String(oid), message, plat: '1', csrf: String(cred.bili_jct) }
+// 2026-10-23 修（issue #26，@DDDMUC 报的）：
+//   以前只把 @主人 拼成【纯文本】✗ B站 那边根本不是"提及" → 主人收不到任何通知 ✗
+//   B站 只在请求体带 at_name_to_mid 时，才把正文里的 @名字 解析成真提及 → 才推送 ✓
+//   社区文档没收录这个参数（能用但没文档 ✓）所以很容易漏 ✓
+//   注意：ow 是上面 if(SHARE) 块里的局部变量 ✗ 这里（顶层）取不到 → 直接读 config ✓
+const OW = config().owner ?? {}
+if (SHARE && OW.name && OW.mid) {
+  params.at_name_to_mid = JSON.stringify({ [OW.name]: Number(OW.mid) })
+}
 if (root) params.root = String(root)
 if (parent) params.parent = String(parent)
 const signed = await wbiSign(params)
