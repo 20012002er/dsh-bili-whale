@@ -108,8 +108,12 @@ if (hit) {
   else console.log(`DM_HIT mid=${OWNER} name=${OWNER_NAME} ts=${r.ts} text=${r.text.replace(/\n/g, ' ').slice(0, 200)}`)
   process.exit(0)
 }
-// 没命中：把 lastSeen 往前推（避免旧消息反复触发；但只在对方是主人时推）
-if (r.ts > lastSeen) saveState({ owner: OWNER, lastSeen: r.ts, lastKey: r.key, at: new Date().toISOString() })
+// 没命中：把 lastSeen 往前推（避免旧消息反复触发）—— 必须**只在对方是主人时推**
+//   2026-10-24 修：原来这行没检查 r.fromOwner ✗
+//   会话里最后一条若是【她自己发的】（notify / 日报），lastSeen 会跳到她那一条 ✗
+//   → 主人还没被回的那条就变成"旧的"，永远不再触发 ✗
+//   实测：主人 02:47:06 / 02:49:04 两条问话就是这么丢的，lastSeen 被推到她自己 02:52:34 那条
+if (r.fromOwner && r.ts > lastSeen) saveState({ owner: OWNER, lastSeen: r.ts, lastKey: r.key, at: new Date().toISOString() })
 if (JSONOUT) console.log(JSON.stringify({ hit: false }))
 else if (!ONCE) console.log('无新私信')
 process.exit(1)
