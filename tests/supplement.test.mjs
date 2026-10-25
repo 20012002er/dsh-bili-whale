@@ -40,6 +40,13 @@ test('issue 19: DM status explains both directions and unknown reverse state',t=
  assert.doesNotMatch(fs.readFileSync(s.env.TEST_REQUESTS,'utf8'),/POST/)
 })
 
+test('issue 40: multi-day diary includes middle dates and empty cells do not shift columns',t=>{
+ const s=sandbox(t),date=new Date(Date.now()-86400000).toLocaleDateString('sv-SE')
+ fs.writeFileSync(path.join(s.dsh,'whale-diary.md'),`## 看过\n| 时间 | BV | 标题 | 简介 | 想法 |\n| --- | --- | --- | --- | --- |\n| ${date} | | 中间日期标题 | | 保留想法列 |\n`)
+ const r=s.run('diary',['show','--days','3']);assert.equal(r.status,0,r.stderr)
+ assert.match(r.stdout,/看过 1 条/);assert.match(r.stdout,/· 中间日期标题/);assert.match(r.stdout,/她的想法：保留想法列/)
+})
+
 const images={img_url:'https://i.test/7cd084941338484aae1ad9425b84077c.png',sub_url:'https://i.test/4932caff0ff746eab6f01bf08b70ac45.png'}
 test('issue 18: affected metadata CLIs fail cleanly on HTTP 412 without writes',t=>{
  const s=sandbox(t);s.env.NODE_OPTIONS='--import='+pathToFileURL(path.join(root,'tests/helpers/api-fetch.mjs')).href;s.env.BILI_NO_CACHE='1'

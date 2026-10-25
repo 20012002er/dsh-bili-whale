@@ -74,10 +74,10 @@ if (cmd === 'show' || !cmd) {
     // 看过的：表格里日期匹配的
     const seenKey = Object.keys(sections).find((k) => k.includes('看过')) ?? ''
     const rows = (sections[seenKey] ?? []).filter((l) => l.startsWith('|') && !/^\|\s*-+/.test(l) && !l.includes('| 时间 |'))
-    const hit = rows.filter((r) => r.includes(since) || r.includes(today()))
+    const hit = rows.filter(r => {const date=r.match(/\b\d{4}-\d{2}-\d{2}\b/)?.[0];return date && date>=since && date<=today()})
     console.log(`【看过 ${hit.length} 条】`)
     for (const r of hit) {
-      const c = r.split('|').map((s) => s.trim()).filter(Boolean)
+      const c = r.replace(/^\s*\||\|\s*$/g,'').split('|').map(s=>s.trim())
       console.log(`  · ${c[2] ?? c[0]}  ${String(c[3] ?? '').slice(0, 46)}`)
       if (c[4]) console.log(`      她的想法：${String(c[4]).slice(0, 120)}`)
     }

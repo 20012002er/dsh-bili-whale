@@ -97,9 +97,14 @@ export function createTrafficGuard({ directory, transport = (...a) => globalThis
     const body = options.body ?? (writing && input instanceof Request ? await input.clone().text() : undefined)
     const operation = writing ? await fingerprint(url, body) : null
     const id = operation ? account.slice(0,16) + ':' + operation : null
-    const cfg = settings(), timestamp = now()
+    const cfg = settings()
+    let timestamp = now()
+    const waitDeadline=timestamp+Math.min(180000,Math.max(0,Number(options.waitWriteMs)||0))
     const requestToken = crypto.randomUUID()
-    const reservation = await locked(s => {
+    let reservation
+    for (;;) {
+    timestamp=now()
+    try { reservation = await locked(s => {
       blocked(s, account)
       s.accounts ??= {}; s.operations ??= {}
       const a = s.accounts[account] ??= {}
@@ -111,7 +116,7 @@ export function createTrafficGuard({ directory, transport = (...a) => globalThis
         if (s.operations[id]) throw new TrafficError(`相同操作已提交或结果待核查，禁止重复发送；操作 ID：${id}`)
         if (Object.keys(s.operations).length >= 2000) throw new TrafficError('发送记录已满，请先核查未确认操作')
         const gap = (url.pathname.endsWith('/send_msg') ? cfg.dmGapSec : cfg.writeGapSec) * 1000
-        if (a.lastWrite && timestamp - a.lastWrite < gap && !url.pathname.endsWith('/reply/del')) throw new TrafficError('写操作冷却中，请稍后再发送')
+        if (a.lastWrite && timestamp - a.lastWrite < gap && !url.pathname.endsWith('/reply/del')) throw Object.assign(new TrafficError('写操作冷却中，请稍后再发送'), { cooldownMs: a.lastWrite + gap - timestamp })
         if ((a.writeHour ?? 0) >= cfg.writeHourly || (a.writeDay ?? 0) >= cfg.writeDaily) throw new TrafficError('已达到本地写操作预算，本次不发送')
       } else if ((a.readHour ?? 0) >= cfg.readHourly || (a.readDay ?? 0) >= cfg.readDaily) throw new TrafficError('已达到本地读取预算，请等待预算窗口恢复')
       const slot = Math.max(timestamp, Number(s.nextAt ?? 0))
@@ -121,6 +126,13 @@ export function createTrafficGuard({ directory, transport = (...a) => globalThis
       else { a.readHour=(a.readHour??0)+1; a.readDay=(a.readDay??0)+1 }
       return { slot }
     })
+      break
+    } catch(e) {
+      if(!e.cooldownMs || now()+e.cooldownMs>waitDeadline || !options.waitWriteMs) throw e
+      await sleep(e.cooldownMs)
+      options.signal?.throwIfAborted()
+    }
+    }
     let dispatched = false
     try {
       await sleep(Math.max(0, reservation.slot-now()))

@@ -1,3 +1,4 @@
+import { latestFeedback } from '../lib/dm-feedback.mjs'
 import { apiGet } from '../lib/bili-api.mjs'
 // 对外发言的「限额闸」—— B 档"限额自主"的代码强制部分（2026-10-14 主人选 B 档）。
 //
@@ -60,6 +61,7 @@ const saveFeedback = (f) => { fs.mkdirSync(path.dirname(FEEDBACK), { recursive: 
 /** 沉默天数：从来没反馈过就从"第一次分享"算；返回 { days, cap } */
 function silence() {
   const fb = loadFeedback()
+  fb.last = latestFeedback(fb.last, config().owner?.mid)
   const base = fb.last ?? (q.log.find((x) => x.share)?.at ?? null)   // 没反馈过 → 从第一次分享算
   const days = base ? Math.floor((Date.now() - new Date(base).getTime()) / 86_400_000) : 0
   const after = Number(config().share?.silentAfterDays ?? 3)     // 3 天开始衰减

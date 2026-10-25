@@ -1,3 +1,5 @@
+import {checkCommentTarget} from '../lib/comment-target.mjs'
+import {exactJson} from '../lib/json-exact.mjs'
 import { decision, notifyOnce } from '../lib/ai-share.mjs'
 import { guardedFetch as fetch } from '../lib/traffic.mjs'
 // Post ONE bilibili comment on the user's behalf. Explicitly single-shot.
@@ -39,9 +41,9 @@ const saveReplied = (o) => { try { fs.mkdirSync(path.dirname(REPLIED), { recursi
 // 查出"被回复的那个人"是谁（reply/reply 里 rpid === parent 的那条的作者）
 async function parentAuthor(aid, rootRpid, parentRpid, replyType) {
   for (let pn = 1; pn <= 4; pn += 1) {
-    const j = await (await fetch(`https://api.bilibili.com/x/v2/reply/reply?type=${replyType}&oid=${aid}&root=${rootRpid}&pn=${pn}&ps=20`, {
+    const j = await exactJson(await fetch(`https://api.bilibili.com/x/v2/reply/reply?type=${replyType}&oid=${aid}&root=${rootRpid}&pn=${pn}&ps=20`, {
       headers: { 'user-agent': 'Mozilla/5.0', referer: 'https://www.bilibili.com/' },
-    })).json()
+    }))
     const list = j.data?.replies ?? []
     const hit = list.find((r) => String(r.rpid) === String(parentRpid))
     if (hit) return { mid: String(hit.mid ?? hit.member?.mid ?? ''), name: hit.member?.uname ?? '' }
@@ -82,9 +84,8 @@ let parent = args.get('parent') // 要回复的那条评论 rpid
 //   root=0 的真实含义就是「parent 自己就是顶层评论」✓ 所以这里兜一下 ✓
 if (parent && (!root || String(root) === '0')) root = String(parent)
 
-// type=1 视频（默认）；type=11 动态/图文。⚠️ 动态的 oid 必须用
-// polymer/web-dynamic/v1/detail 给的 basic.comment_id_str，**不是** dyn_id 本身
-// （拿 dyn_id 当 oid 一律 -404，2026-10-13 实测踩过）。
+// type=1 视频（默认）；动态按通知的 business_id / detail 的 comment_type 取 11 或 17。
+// oid 使用 subject_id / basic.comment_id_str 的完整字符串，不要转成 Number。
 const type = String(args.get('type') ?? '1')
 // 动态评论的 referer 要指到 opus 页；给了它就可以不给 --bvid。
 const refererArg = args.get('referer') ? String(args.get('referer')) : ''
@@ -129,7 +130,7 @@ if (CHECK) {
 }
 
 if (!oid || (!bvid && !refererArg) || !message) {
-  console.error('usage: --oid <aid|comment_id_str> [--bvid <BV...> | --referer <url>] --message "<text>" [--type 1|11] [--root <rpid> --parent <rpid>] [--dry | --go] [--check]')
+  console.error('usage: --oid <aid|comment_id_str> [--bvid <BV...> | --referer <url>] --message "<text>" [--type 1|11|17] [--root <rpid> --parent <rpid>] [--dry | --go] [--check]')
   process.exit(2)
 }
 if (dry && go) { console.error('pick either --dry or --go, not both'); process.exit(2) }
@@ -281,6 +282,10 @@ console.log(`  账号: ${nav.data.uname}   (mid ${nav.data.mid})`)
 console.log(`  手机绑定: ${nav.data.mobile_verified ? '是' : '否'}   硬币 ${nav.data.money}`)
 console.log('  ⚠️ 请确认这就是你的小号；若是主号，停手、换 cookie')
 
+if (type === '11' || type === '17') {
+  try {await checkCommentTarget(type,oid,{'user-agent':UA,referer,cookie:cookieHeader})}
+  catch(e){console.error(e.message);process.exit(6)}
+}
 const params = { type, oid: String(oid), message, plat: '1', csrf: String(cred.bili_jct) }
 // 2026-10-23：issue #26 的前提不成立 ✗（主人实测纯文本 @ 每次都收得到 ✓）→ 不加 at_name_to_mid ✓
 if (root) params.root = String(root)
@@ -328,7 +333,7 @@ const res = await fetch(url, {
   },
   body,
 })
-const out = await res.json().catch(async () => ({ raw: await res.text() }))
+const out = await exactJson(res).catch(() => ({ message: '评论响应不是有效 JSON，请回读核查，不要直接重发' }))
 console.log(`  HTTP ${res.status}`)
 console.log(`  code=${out.code} message=${out.message ?? ''}`)
 if (out.code === 0) {
@@ -368,7 +373,7 @@ if (out.code === 0) {
       const msg = `[${SHARE ? '分享型·@主人' : '自主发言'}] 评论已发出 rpid=${rpid}\n目标：${bvid ? 'BV:' + bvid : 'oid:' + oid}\n内容：${message.slice(0, 80)}`
       execFileSync(NODE_EXE,
         [path.join(path.dirname(fileURLToPath(import.meta.url)), 'notify.mjs'), msg, '--title', SHARE ? '分享评论报备' : '自主发言报备'],
-        { stdio: 'inherit' })
+        { stdio: 'inherit', timeout: 330000 })
     } catch (e) {
       console.log(`  [通知] 发出去了但报备失败：${String(e.message).slice(0, 120)}——请手动告诉使用者`)
     }

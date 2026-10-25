@@ -2,6 +2,7 @@ import fs from 'node:fs'
 globalThis.fetch = async (url, opts = {}) => {
   fs.appendFileSync(process.env.TEST_REQUESTS, JSON.stringify({url:String(url),method:opts.method ?? 'GET'})+'\n')
   let data
+  if(String(url).includes('/x/v2/reply/main'))return new Response(JSON.stringify({code:Number(process.env.TEST_TARGET_CODE??0),data:{}}),{status:200})
   if (String(url).includes('/x/v2/reply/reply')) {
     const u = new URL(url)
     data = u.searchParams.get('type') === '11' && u.searchParams.get('root') === '9'

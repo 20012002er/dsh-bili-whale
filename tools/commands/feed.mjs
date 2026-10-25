@@ -47,6 +47,11 @@ try {
   for (const bv of fs.readFileSync(audit, 'utf8').matchAll(/\bBV[0-9A-Za-z]{10}\b/g)) seen.add(bv[0])
 } catch { /* 没有审计表也无妨 */ }
 
+try {
+  const ledger=JSON.parse(fs.readFileSync(path.join(HOME,'.bili-ai/quota.json'),'utf8'))
+  for(const row of ledger.log??[])if(row.type==='comment'&&/^BV:BV[0-9A-Za-z]{10}$/.test(row.target??''))seen.add(row.target.slice(3))
+} catch(e) {if(e.code!=='ENOENT')throw Error('评论账本无法读取，停止选题以免重复分享')}
+
 const cred = JSON.parse(fs.readFileSync(path.join(HOME, '.bili-ai', 'credentials.json'), 'utf8'))
 const UA = 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36'
 const H = { 'user-agent': UA, referer: 'https://search.bilibili.com/', cookie: `SESSDATA=${cred.sessdata}; bili_jct=${cred.bili_jct}; buvid3=${cred.buvid3}` }

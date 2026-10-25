@@ -173,7 +173,7 @@ try {
     const fdO = fs.openSync(outF, 'w'); const fdE = fs.openSync(errF, 'w')
     let r
     try {
-      r = spawnSync(NODE_EXE, [dmPath, '--msg', String(text), '--go'], { stdio: ['ignore', fdO, fdE], timeout: 90000 })
+      r = spawnSync(NODE_EXE, [dmPath, '--msg', String(text), '--go'], { stdio: ['ignore', fdO, fdE], timeout: 300000 })
     } finally {
       try { fs.closeSync(fdO) } catch {}
       try { fs.closeSync(fdE) } catch {}

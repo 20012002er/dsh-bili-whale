@@ -69,7 +69,7 @@ async function realText(x) {
   // source_content 才是我要的正文（title 是不可靠的陈旧字段）；为空才回读楼层兜底
   if (x.source || x.title) return { text: (x.source || x.title).replace(/\n/g, ' '), rpid: x.parent }
   if (RAW || x.kind !== 'reply' || resolved >= MAX_RESOLVE) return { text: '', rpid: x.parent }
-  const key = `${x.oid}|${x.root}|${x.mid}`
+  const key = `${x.business}|${x.oid}|${x.root}|${x.mid}|${x.parent}`
   if (cache.has(key)) return cache.get(key)
   resolved += 1
   const r = await resolveLatestReply({ business: x.business, oid: x.oid, root: x.root, mid: x.mid, parentRpid: x.parent, headers: H }).catch(() => null)

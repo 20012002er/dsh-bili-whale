@@ -1,3 +1,4 @@
+import { exactJson } from './json-exact.mjs'
 import { guardedFetch as fetch } from './traffic.mjs'
 // lib/msgfeed.mjs —— B 站两个"收件箱"的共用读法（回复我的 / @我的）
 //
@@ -28,7 +29,7 @@ export async function pullFeed(kind, { headers, pages = 1 }) {
   let lastView = 0
   for (let p = 0; p < pages; p += 1) {
     const url = `https://api.bilibili.com/x/msgfeed/${kind}?platform=web&build=0&mobi_app=web` + (cursor ? `&cursor=${encodeURIComponent(cursor)}` : '')
-    const j = await (await fetch(url, { headers })).json()
+    const j = await exactJson(await fetch(url, { headers }))
     if (j.code !== 0) throw new Error(`${kind} code=${j.code} ${j.message}`)
     if (p === 0) lastView = Number(j.data?.last_view_at ?? 0)
     const items = j.data?.items ?? []
@@ -62,13 +63,15 @@ export async function pullFeed(kind, { headers, pages = 1 }) {
 // 回读楼层，取"这个人在这个楼里、挂在指定父评论下的那条回复" —— 这才是他真正说的话
 // parentRpid 是关键：同一个人在一个楼里可能有好几条评论，只有 parent 对上号的那条才是"新回复"
 export async function resolveLatestReply({ business, oid, root, mid, parentRpid, headers }) {
-  const type = business === 11 ? 11 : 1
+  const type = [11, 17].includes(Number(business)) ? Number(business) : 1
+  const thread = root && String(root) !== '0' ? root : parentRpid
   const reps = []
   for (let pn = 1; pn <= 6; pn += 1) {
-    const u = `https://api.bilibili.com/x/v2/reply/reply?type=${type}&oid=${oid}&root=${root}&ps=20&pn=${pn}`
-    const j = await (await fetch(u, { headers })).json().catch(() => null)
+    const u = `https://api.bilibili.com/x/v2/reply/reply?type=${type}&oid=${oid}&root=${thread}&ps=20&pn=${pn}`
+    const j = await exactJson(await fetch(u, { headers })).catch(() => null)
     if (!j || j.code !== 0) return null
     const page = j.data?.replies ?? []
+    if(pn===1 && j.data?.root) reps.push(j.data.root)
     reps.push(...page)
     if (page.length < 20) break
   }
@@ -77,7 +80,8 @@ export async function resolveLatestReply({ business, oid, root, mid, parentRpid,
   let pick = null
   if (parentRpid) {
     // ① 优先：父评论对得上（这就是"他回的那条"）
-    pick = [...mine].reverse().find((r) => String(r.parent) === String(parentRpid)) ?? null
+    pick = mine.find((r) => String(r.rpid_str ?? r.rpid) === String(parentRpid))
+      ?? [...mine].reverse().find((r) => String(r.parent) === String(parentRpid)) ?? null
   }
   // ② 退路：他最后一条（可能不是最新的那条，所以输出里会标注）
   const exact = Boolean(pick)

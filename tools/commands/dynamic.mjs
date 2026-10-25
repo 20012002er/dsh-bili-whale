@@ -10,7 +10,7 @@ import path from 'node:path'
 import crypto from 'node:crypto'
 // 2026-10-21 修（外部审计）：下面 --go 路径里调了 gate()，但从来没导入过 ✗
 //   一跑到那儿就是 ReferenceError（danmaku.mjs 早就踩过同一个坑，这次补齐三条）
-import { gate } from '../lib/quota-gate.mjs'
+import { gate, record } from '../lib/quota-gate.mjs'
 
 const argv = process.argv.slice(2)
 const mode = argv[0]
@@ -85,19 +85,20 @@ if (mode === 'post') {
   console.log('=== 登录态 ===')
   const mid = await whoami()
   const body = JSON.stringify({
+    csrf: String(cred.bili_jct),
     dyn_req: {
       content: { contents: [{ raw_text: text, type: 1, biz_id: '' }] },
       scene: 1,
       meta: { app_meta: { from: 'create.dynamic.web', mobi_app: 'web' } },
     },
   })
-  const qs = await wbi({ csrf: String(cred.bili_jct) })
+  const qs = await wbi({})
   const url = `https://api.bilibili.com/x/dynamic/feed/create/dyn?${qs}`
   console.log('\n=== 将要发布 ===')
   console.log(`  POST ${url.replace(encodeURIComponent(String(cred.bili_jct)), '***csrf***').slice(0, 120)}…`)
   console.log(`  content-type: application/json    cookie: SESSDATA=***; bili_jct=***; buvid3=***`)
   console.log(`  正文(${text.length} 字): ${text}`)
-  console.log(`  报文: ${body}`)
+  console.log('  报文: '+JSON.stringify({...JSON.parse(body),csrf:'***csrf***'}))
   if (isDry) { console.log('\n[dry] 未发布。'); process.exit(0) }
 // P0-5（Kimi 评审 #5）：写通道也要过限额闸；不通过就停手
 if (!gate({ type: 'dynamic', target: 'dynamic', auto: process.argv.includes('--auto') })) { console.error('拒绝：限额闸不通过（额度/白名单）'); process.exit(2) }
@@ -110,12 +111,13 @@ if (!gate({ type: 'dynamic', target: 'dynamic', auto: process.argv.includes('--a
   console.log(`\n[go] HTTP ${r.status}  code=${out.code} message=${out.message ?? ''}`)
   if (out.code === 0) {
     const id = out.data?.dyn_id_str ?? out.data?.dyn_id
+    record({type:'dynamic',target:'dynamic:'+id,note:String(text).slice(0,40),auto:process.argv.includes('--auto')})
     console.log(`  ✅ 已发布  dyn_id=${id}`)
     console.log(`  https://t.bilibili.com/${id}`)
   } else {
     console.log(`  errmsg: ${out.data?.errmsg ?? '-'}`)
   }
-  process.exit(0)
+  process.exit(r.ok && out.code===0 ? 0 : 1)
 }
 
 if (mode === 'check') {
@@ -165,7 +167,7 @@ if (mode === 'rm') {
   const hints = { 0: '成功', '-101': '账号未登录', 500404: '已经删除过该动态', 500406: '动态不是自己的' }
   console.log(`\n[go] HTTP ${r.status}  code=${out.code} ${out.message ?? out.msg ?? ''}`)
   console.log(`  ${hints[out.code] ?? ''}`)
-  process.exit(0)
+  process.exit(r.ok && out.code===0 ? 0 : 1)
 }
 
 console.error('用法: list | post --text "..." --dry|--go | rm --id <dyn_id> --dry|--go')

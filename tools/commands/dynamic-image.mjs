@@ -12,7 +12,7 @@ import path from 'node:path'
 import crypto from 'node:crypto'
 // 2026-10-21 修（外部审计）：下面 --go 路径里调了 gate()，但从来没导入过 ✗
 //   一跑到那儿就是 ReferenceError（danmaku.mjs 早就踩过同一个坑，这次补齐三条）
-import { gate } from '../lib/quota-gate.mjs'
+import { gate, record } from '../lib/quota-gate.mjs'
 
 const argv = process.argv.slice(2)
 const args = new Map()
@@ -64,11 +64,9 @@ console.log('=== 图片 ===')
 console.log(`  路径: ${imagePath}`)
 console.log(`  类型: ${kind}   ${(buf.length / 1024).toFixed(1)} KiB   ${dims ? `${dims.width}x${dims.height}` : '尺寸未解析'}`)
 if (!['png', 'jpg', 'gif'].includes(kind)) {
-  console.error(`\n✗ 该接口只收 jpg / png / gif，当前是 ${kind}。先转换，例如用自带 Python + Pillow:`)
-  // 2026-10-22（PR #21 by anupamme）：对 imagePath 做转义 ——
-  //   这行是打印给人看的示例命令，用户会复制去跑；路径里带引号/反斜杠时不该拼出别的命令 ✓
-  const safePath = imagePath.replace(/\\/g, '\\\\').replace(/'/g, "\\'")
-  console.error(`  python -c "from PIL import Image; Image.open(r'${safePath}').convert('RGBA').save(r'<out>.png')"`)
+  console.error(`\n✗ 该接口只收 jpg / png / gif，当前是 ${kind}。`)
+  // PR #21 follow-up: do not interpolate filenames into copyable shell commands.
+  console.error('  请用图片编辑器转换为 PNG 后重试。')
   process.exit(5)
 }
 if (!dims) { console.error('✗ 没解析出尺寸，无法组装 pics'); process.exit(5) }
@@ -110,7 +108,7 @@ console.log(`  账号: ${nav.data.uname} (mid ${nav.data.mid})  手机绑定=${n
 console.log('\n=== 计划 ===')
 console.log('  1) POST https://api.bilibili.com/x/dynamic/feed/draw/upload_bfs')
 console.log(`     multipart: file_up=<图片>  category=daily  csrf=***csrf***   cookie=SESSDATA=***`)
-console.log('  2) POST https://api.bilibili.com/x/dynamic/feed/create/dyn?csrf=***csrf***&wts=..&w_rid=..')
+console.log('  2) POST https://api.bilibili.com/x/dynamic/feed/create/dyn?wts=..&w_rid=..（csrf 在 JSON 正文）')
 console.log(`     JSON: scene=2（带图）, pics=[{img_src:<上一步返回>, img_width:${dims.width}, img_height:${dims.height}, img_size:<KB>}]`)
 console.log(`     正文: ${text ? `「${text.replace(/\n/g, ' / ')}」(${text.length} 字)` : '（空）'}`)
 if (atMid) console.log(`     @节点: raw_text="@${atName ?? ''} "  type=2  biz_id=${atMid}`)
@@ -151,12 +149,13 @@ const dynReq = {
   meta: { app_meta: { from: 'create.dynamic.web', mobi_app: 'web' } },
 }
 if (contents.length) dynReq.content = { contents }
-const body = JSON.stringify({ dyn_req: dynReq })
+const body = JSON.stringify({ dyn_req: dynReq, csrf: String(cred.bili_jct) })
 console.log(`     content.contents = ${JSON.stringify(contents)}`)
-const qs = await wbi({ csrf: String(cred.bili_jct) })
+const qs = await wbi({})
 // 闸门已在上传前过 ✓（2026-10-21 挪走，见上）
 const r = await fetch(`https://api.bilibili.com/x/dynamic/feed/create/dyn?${qs}`, {
   method: 'POST',
+  waitWriteMs: 180000,
   headers: { 'user-agent': UA, referer: REF, origin: 'https://t.bilibili.com', 'content-type': 'application/json', cookie: cookieHeader },
   body,
 })
@@ -164,6 +163,7 @@ const out = await r.json()
 console.log(`     HTTP ${r.status}  code=${out.code} ${out.message ?? ''}`)
 if (out.code === 0) {
   const id = out.data?.dyn_id_str ?? out.data?.dyn_id
+  record({type:'dynamic',target:'dynamic:'+id,note:String(text).slice(0,40),auto:process.argv.includes('--auto')})
   console.log(`\n✅ 已发布（未删除，等你确认）  dyn_id=${id}`)
   console.log(`   https://t.bilibili.com/${id}`)
   console.log(`   复核: node bili-dynamic.mjs check --id ${id}`)
@@ -171,3 +171,5 @@ if (out.code === 0) {
 } else {
   console.log(`  errmsg: ${out.data?.errmsg ?? '-'}`)
 }
+
+process.exit(r.ok && out.code===0 ? 0 : 1)

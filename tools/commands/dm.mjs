@@ -152,6 +152,7 @@ async function send(toMid, text) {
   body.set('csrf', String(cred.bili_jct))
   const r = await fetch('https://api.vc.bilibili.com/web_im/v1/web_im/send_msg', {
     method: 'POST',
+    waitWriteMs: 180000,
     headers: { ...H, 'content-type': 'application/x-www-form-urlencoded' },
     body: body.toString(),
   })

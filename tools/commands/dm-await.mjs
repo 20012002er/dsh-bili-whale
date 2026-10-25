@@ -4,10 +4,11 @@ import path from 'node:path'
 import crypto from 'node:crypto'
 import {config} from '../lib/config.mjs'
 import {readHistory} from '../lib/dm-history.mjs'
+import {acquireProcessLock} from '../lib/process-lock.mjs'
 const argv=process.argv.slice(2),peek=argv.includes('--peek'),json=argv.includes('--json')
 const owner=String(config().owner?.mid??'').trim(),name=String(config().owner?.name??'主人')
 const home=process.env.USERPROFILE||process.env.HOME||'/'
-const file=path.join(home,'.bili-ai/dm-await-state.json'),lock=file+'.lock'
+const file=path.join(home,'.bili-ai/dm-await-state.json')
 function save(state) {
   const tmp=file+'.'+crypto.randomUUID()+'.tmp'
   try{fs.writeFileSync(tmp,JSON.stringify(state,null,2));fs.renameSync(tmp,file)}finally{fs.rmSync(tmp,{force:true})}
@@ -37,10 +38,11 @@ async function main(){
     const result=await readHistory(owner,headers,state,{baseline:argv.includes('--baseline')})
     if(argv.includes('--baseline')){
       const latest=result.all.at(-1),ts=latest?.ts??0
-      save({owner,lastSeen:ts,lastKey:latest?.key,lastKeys:result.all.filter(r=>r.ts===ts).map(r=>r.key),queue:[]})
+      save({owner,lastSeen:ts,lastKey:latest?.key,lastKeys:result.all.filter(r=>r.ts===ts).map(r=>r.key),lastIncoming:state.lastIncoming,queue:[]})
       console.log('已把当前私信状态标记为已读');return 0
     }
-    state={...state,owner,queue:result.messages}
+    state={...state,owner,queue:result.messages,lastIncoming:Math.max(Number(state.lastIncoming??0),...result.messages.map(r=>r.ts))}
+    save(state)
   }
   if(!state.queue.length){console.log(json?JSON.stringify({hit:false}):'无新私信');return 1}
   const [row,...rest]=state.queue
@@ -50,10 +52,10 @@ async function main(){
   else save(acknowledge(state,message))
   emit(message);return 0
 }
-let fd
+let release
 try{
   fs.mkdirSync(path.dirname(file),{recursive:true})
-  try{fd=fs.openSync(lock,'wx')}catch(e){if(e.code==='EEXIST')throw Error('另一个私信监听进程正在运行或遗留锁未清理，请检查后重试');throw e}
+  release=await acquireProcessLock(file)
   process.exitCode=await main()
 }catch(e){console.error(e.message);process.exitCode=3}
-finally{if(fd!==undefined){fs.closeSync(fd);fs.unlinkSync(lock)}}
+finally{if(release)await release()}

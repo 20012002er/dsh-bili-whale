@@ -22,8 +22,8 @@ const write=(value)=>fs.writeFileSync(process.env.TEST_HISTORY,JSON.stringify(va
 const empty=()=>write({code:0,data:{messages:[],has_more:0}})
 empty()
 const {startScheduler}=await import('../../lib/scheduler.js')
-let prompts=0
-const scheduler=startScheduler({sessionController:{create:async()=>{},prompt:async()=>{prompts++}}},{dshHome:dsh,cwd:home,biliMjs:fileURLToPath(new URL('../../tools/bili.mjs',import.meta.url))})
+let prompts=0;let received=[]
+const scheduler=startScheduler({sessionController:{create:async()=>{},prompt:async(request)=>{prompts++;received.push(request)}}},{dshHome:dsh,cwd:home,biliMjs:fileURLToPath(new URL('../../tools/bili.mjs',import.meta.url))})
 try {
   for(let i=0;i<6;i++) {
     const n=exits.length;await scheduler.dmTick()
@@ -38,10 +38,10 @@ try {
   now+=60000;empty();await scheduler.dmTick();assert.equal(exits.at(-1).code,1)
   now+=60000;await scheduler.dmTick();assert.equal(exits.length,n+2,'successful empty read resets failure backoff')
   now+=60000
-  write({code:0,data:{messages:[{sender_uid:222,timestamp:Math.floor(now/1000),msg_key:'real-exit-test',content:JSON.stringify({content:'hello'})}],has_more:0}})
+  write({code:0,data:{messages:[{sender_uid:222,timestamp:Math.floor(now/1000),msg_key:'real-exit-test',content:JSON.stringify({content:'X'.repeat(500)+'TAIL_MUST_REACH_AGENT'})}],has_more:0}})
   await scheduler.dmTick();assert.equal(prompts,1)
   assert.equal(exits.at(-2).code,0);assert.ok(JSON.parse(exits.at(-2).out).receipt)
-  assert.equal(exits.at(-1).ack,true);assert.equal(exits.at(-1).code,0)
+  assert.match(JSON.stringify(received),/TAIL_MUST_REACH_AGENT/);assert.equal(exits.at(-1).ack,true);assert.equal(exits.at(-1).code,0)
   now+=60000;await scheduler.dmTick();assert.equal(prompts,1);assert.equal(exits.at(-1).code,1)
   assert.equal(fs.existsSync(path.join(home,'.bili-ai/dm-tick-err.log')),true)
   console.log('PASS real CLI: empty=1 stays fixed, API failure=3 backs off, hit=0 delivers, ack=0 confirms, repeat=1')
