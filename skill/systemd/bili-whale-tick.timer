@@ -1,0 +1,11 @@
+[Unit]
+Description=每分钟问一次 bili-whale：现在该不该醒
+
+[Timer]
+# 计划时刻本身是随机抽的，所以只做"每分钟问一次"，由 tick 自己判断。
+OnCalendar=*-*-* *:*:00
+AccuracySec=1s
+Unit=bili-whale-tick.service
+
+[Install]
+WantedBy=timers.target

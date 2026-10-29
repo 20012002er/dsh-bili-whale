@@ -22,6 +22,10 @@ node_modules/
 *.png
 !examples/**/*.png
 
+# ── skill 打包产物（install.mjs 从 tools/ 与 lib/ 同步生成）──────
+skill/scripts/
+skill/lib/
+
 # ── 本机/编辑器 ─────────────────────────────────────────
 .env
 .env.*

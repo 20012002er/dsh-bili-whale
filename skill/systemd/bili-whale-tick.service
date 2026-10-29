@@ -1,0 +1,13 @@
+[Unit]
+Description=bili-whale tick（按作息判断该不该唤醒生活流会话）
+Documentation=file://%h/.hermes/skills/bili-whale/references/schedule.md
+
+[Service]
+Type=oneshot
+# node 若来自 nvm/fnm，把 /usr/bin/env 换成 command -v node 的绝对路径
+ExecStart=/usr/bin/env node %h/.hermes/skills/bili-whale/scripts/bili.mjs tick --once --json
+# 数据目录不是 ~/.bili-whale 时再打开（%h 在 Environment= 里不展开，写绝对路径）
+# Environment=BILI_WHALE_HOME=/home/youruser/.bili-whale
+# Hermes API Server 的 key（也可以直接写在 bili-whale.config.json 里）
+# Environment=API_SERVER_KEY=change-me
+Nice=10

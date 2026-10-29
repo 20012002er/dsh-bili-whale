@@ -52,6 +52,25 @@ export const DEFAULTS = {
   listen: { comment: false, commentIntervalSec: 60, scope: 'both', oncePerPerson: true, allDay: false, dm: true, dmIntervalSec: 60, live: false, liveRoom: '', liveScope: 'owner' },
   // 作息：windows[] = 每天允许醒来的时段（每个窗口 = 一次机会）；maxWakesPerDay 缺省 = 窗口数（硬上限 3）
   night: { windows: [{ start: '20:00', end: '24:00', wakes: 1 }], skipChance: 0.3, minGapMin: 10, maxVideos: 5 },
+  // 宿主适配（2026-10-29 通用 skill 移植加）：工具链自己不调度，
+  // 只把"这一轮该做什么"交给宿主 agent；host 决定用哪个适配器。
+  agent: {
+    host: 'hermes',                          // hermes | openclaw
+    baseUrl: 'http://127.0.0.1:8642',        // Hermes API Server（只允许本机）
+    model: 'hermes-agent',
+    sessionDir: '',                          // 空 = ~/.bili-whale（BILI_WHALE_STATE_DIR 可覆盖）
+    timeoutMs: 620000,                       // 与 Hermes wake.py 一致：600s + 余量
+    deliver: true,                           // 分享/报备走宿主 --deliver，不再走 notify
+    // OpenClaw 走 CLI（docs/cli/agent.md）：openclaw agent --session-id ... --message ...
+    openclaw: {
+      bin: 'openclaw',                       // 可写绝对路径
+      agentId: '',                           // sessionMode=agent 时必填
+      sessionMode: 'session-id',             // session-id（隔代会话）| agent（该 agent 的 main 会话）
+      local: false,                          // true = --local，不经过 Gateway（需要当前 shell 有模型 key）
+      channel: '',                           // deliver 时用的渠道
+      timeoutMs: 620000,
+    },
+  },
 }
 
 const merge = (base, over) => {

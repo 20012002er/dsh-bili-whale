@@ -9,6 +9,10 @@ import { NODE_EXE } from './lib/nodebin.mjs'   // 2026-10-21：别用 process.ex
 const here = path.dirname(fileURLToPath(import.meta.url))
 const map = {
   traffic: ['commands/traffic.mjs', '请求保护状态 / 人工核查后恢复'],
+  login: ['commands/login.mjs', 'B站登录（通用 skill 用）：终端二维码扫码，或 --cookie 粘整串兜底 [--json]'],
+  agent: ['commands/agent.mjs', '生活流会话（通用 skill 用）：bootstrap / wake / reconcile / status / pending / rotate'],
+  tick: ['commands/tick.mjs', '生物钟 tick（cron/systemd 用）：按作息判断该不该醒，交给宿主；--once / --daemon [--dry] [--force]'],
+  listen: ['commands/listen.mjs', '监听接线：私信/评论/直播命中后叫醒同一个会话；--once / --daemon'],
   // —— 读（不需要写操作，安全） ——
   session: ['verify/session.mjs', '确认凭据属于哪个号'],
   thread: ['verify/thread.mjs', '导出一条评论的完整楼中楼结构'],

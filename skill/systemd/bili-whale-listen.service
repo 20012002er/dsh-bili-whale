@@ -1,0 +1,19 @@
+[Unit]
+Description=bili-whale listen（私信/评论/直播，命中后叫醒同一个会话）
+Documentation=file://%h/.hermes/skills/bili-whale/references/schedule.md
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+# node 若来自 nvm/fnm，把 /usr/bin/env 换成 command -v node 的绝对路径
+ExecStart=/usr/bin/env node %h/.hermes/skills/bili-whale/scripts/bili.mjs listen --daemon
+Restart=always
+RestartSec=15
+KillSignal=SIGTERM
+TimeoutStopSec=30
+# Environment=BILI_WHALE_HOME=/home/youruser/.bili-whale
+# Environment=API_SERVER_KEY=change-me
+
+[Install]
+WantedBy=default.target

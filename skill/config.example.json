@@ -1,0 +1,57 @@
+{
+  "self": { "mid": "", "name": "" },
+  "owner": { "mid": "", "name": "" },
+  "persona": {
+    "name": "小鱼",
+    "ownerTitle": "你",
+    "selfClaim": "我",
+    "diaryTitle": "今日摘要"
+  },
+  "preferences": {
+    "like": ["AI 工具与插件", "鬼畜与怀旧向剪辑", "猫咪", "Live2D/模型"],
+    "dislike": ["带货", "擦边", "标题党", "纯搬运"]
+  },
+  "share": {
+    "enabled": true,
+    "via": "comment",
+    "minScore": 13,
+    "silentAfterDays": 3,
+    "aiCommentGuard": false,
+    "aiThreshold": 30
+  },
+  "quota": { "shareDaily": 3 },
+  "listen": {
+    "comment": false,
+    "commentIntervalSec": 60,
+    "oncePerPerson": true,
+    "allDay": false,
+    "dm": false,
+    "dmIntervalSec": 60,
+    "live": false,
+    "liveRoom": "",
+    "liveScope": "owner"
+  },
+  "night": {
+    "windows": [{ "start": "20:00", "end": "24:00", "wakes": 1 }],
+    "skipChance": 0.3,
+    "minGapMin": 10,
+    "maxVideos": 5
+  },
+  "notify": { "type": "none", "url": "", "template": "text", "cmd": "" },
+  "agent": {
+    "host": "hermes",
+    "baseUrl": "http://127.0.0.1:8642",
+    "model": "hermes-agent",
+    "sessionDir": "",
+    "timeoutMs": 620000,
+    "deliver": true,
+    "openclaw": {
+      "bin": "openclaw",
+      "agentId": "",
+      "sessionMode": "session-id",
+      "local": false,
+      "channel": "",
+      "timeoutMs": 620000
+    }
+  }
+}
